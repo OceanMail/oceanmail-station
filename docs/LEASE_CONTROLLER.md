@@ -84,18 +84,29 @@ stated as an honest limitation, not silently assumed safe.
 ## Band 2 fair selection (`band2_fairness.rs`)
 
 Given an already-admitted/classified candidate list and a `Work::Payload`
-turn, selects which items run and in what order: local-vs-relay and
-per-account/per-peer fairness via a weighted least-cumulative-service-first
-rule (an idle scope/group simply never competes, so its capacity is used by
-whichever scope is ready, with no separate reallocation step); recipient
-Available order within a scope, with body-before-attachment enforced even
-against a misordered `recipient_order`; and an explicit
-`Measured`/`Estimated` distinction on every item's airtime cost so a turn's
-reported `used` total is never reported as fully measured when it is not.
-The `FairnessLedger` persists cumulative usage across calls (separate
-leases), which is what keeps a large backlog or a reconnect from buying a
-scope more than its fair share — see the module's own tests for a worked
-example.
+turn, selects which items run and in what order, two-level: local-vs-relay
+**group** share first (compared by each group's own aggregate decayed
+usage, so the number of identities active in a group cannot change its
+share), then per-account/per-peer share within whichever group is due
+(equal in-group weight, ADR-008's "initial policy"). An idle scope/group
+simply never competes, so its capacity is used by whichever scope is
+ready, with no separate reallocation step. Usage decays linearly with real
+idle time (one nanosecond of accrued weighted usage forgiven per
+nanosecond untouched, floored at zero), so a scope that used substantial
+airtime long ago and then went idle is not stuck behind smaller,
+currently-active competitors forever — real aging, not just "never accrues
+more". Within a scope: recipient Available order, with body-before-
+attachment enforced even against a misordered `recipient_order`; an
+explicit `Measured`/`Estimated` distinction on every item's airtime cost so
+a turn's reported `used` total is never reported as fully measured when it
+is not. The `FairnessLedger` persists decayed usage across calls (separate
+leases), which is what keeps a large backlog or an immediate reconnect from
+buying a scope more than its fair share — see the module's own tests for
+worked examples, including the exact scenarios an automated PR review
+([chatgpt-codex-connector] on
+[oceanmail-station#1](https://github.com/OceanMail/oceanmail-station/pull/1))
+found broken in an earlier version of this module (flat per-scope
+comparison instead of group-then-scope, and usage that never decayed).
 
 ## No-radio scheduling harness (`scheduling_harness.rs`)
 
@@ -108,6 +119,17 @@ serializable `Trace` (`Trace::to_json`). A scenario may carry a
 `capacity_tier_label` string as evidence metadata only; this harness does
 not implement ADR-007's capacity-tier eligibility/cost gating, so the label
 records a scenario author's assumption, not an enforced rule.
+
+Route-setup admission is enforced by the harness itself, not left to a
+scenario author to remember: `Tick::route_setup_candidate` names a route,
+and `Harness::run` checks `RouteAttemptTracker::admit` for it before
+classification; a bare `WorkKind::NecessaryRouteSetup` placed directly in
+`Tick::work_kinds` is dropped rather than honored. An earlier version left
+this unchecked, so a scenario could show a backed-off route still winning
+lease turns — also found by the automated review on
+[oceanmail-station#1](https://github.com/OceanMail/oceanmail-station/pull/1),
+fixed the same way as the fairness findings above: reproduced first
+(`a_backed_off_route_cannot_win_a_lease_turn_either_path`), then corrected.
 
 ## Validation and remaining work
 
@@ -132,7 +154,7 @@ tests; a `scheduling_harness` trace is simulation bookkeeping, not RF
 airtime evidence.
 
 Local validation on Rust 1.94.1 (CI pins 1.98.1): `cargo test --locked`
-passed all 65 tests. `rustfmt --edition 2021 --check` passed for all five
+passed all 70 tests. `rustfmt --edition 2021 --check` passed for all five
 files; `cargo clippy --all-targets --locked` reported no new warnings from
 them. The existing Phase 4J workflow runs the full suite and checks each new
 file's format alongside `auth.rs`/`lease.rs`.

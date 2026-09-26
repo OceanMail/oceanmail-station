@@ -30,6 +30,15 @@
 //! `route_admission::RouteAttemptTracker`, exactly as
 //! `route_admission`'s own module docs require of an adapter.
 //!
+//! Necessary route setup is admission-checked *by the harness itself*, not
+//! left to scenario authors to remember: `Tick::route_setup_candidate`
+//! names a `RouteId`, `run` consults `RouteAttemptTracker::admit` for it
+//! before classification, and a bare `WorkKind::NecessaryRouteSetup` placed
+//! directly in `Tick::work_kinds` is dropped rather than honored — the only
+//! way to reach that classification is the checked field. A backed-off
+//! route therefore cannot win a lease turn through this harness no matter
+//! what a scenario scripts.
+//!
 //! An adapter is also responsible for safe bounded batches and reserving
 //! essential ACK/teardown time out of a granted `Work::Payload` turn
 //! (`docs/LEASE_CONTROLLER.md`); this harness does that via
@@ -46,17 +55,29 @@ use serde::Serialize;
 use std::time::Duration;
 
 /// One synthetic tick's demand. Entirely caller-scripted.
+///
+/// `WorkKind::NecessaryRouteSetup` placed directly in `work_kinds` is
+/// ignored by `Harness::run` — see `route_setup_candidate`, the only
+/// admission-checked path to that classification.
 #[derive(Default)]
 pub struct Tick {
     pub elapsed: Duration,
     pub work_kinds: Vec<(WorkKind, Option<ServerPromotion>)>,
     pub emergency: Option<AuthorizedEmergency>,
     pub band2_items: Vec<Band2Item>,
+    /// Name a route here to attempt necessary setup for it this tick.
+    /// `Harness::run` checks `RouteAttemptTracker::admit` for this
+    /// `RouteId` before classification and only then presents
+    /// `WorkKind::NecessaryRouteSetup` as eligible; a backed-off route is
+    /// silently not classified, exactly as a real caller must gate it
+    /// (`route_admission` module docs) — but enforced here instead of left
+    /// to the scenario author to remember.
+    pub route_setup_candidate: Option<RouteId>,
     /// If this tick concludes an admitted route-setup attempt (by success,
     /// failure, or the lease expiring while it was active), the scenario
     /// must say what happened so `route_admission` accounting reflects
     /// reality instead of silently assuming success. Keyed by the same
-    /// `RouteId` the scenario used when checking `Harness::admit_route`.
+    /// `RouteId` as `route_setup_candidate`/`Harness::admit_route`.
     pub route_outcome: Option<(RouteId, AttemptOutcome)>,
 }
 
@@ -143,9 +164,19 @@ impl Harness {
             let mut candidates: Vec<Candidate> = tick
                 .work_kinds
                 .iter()
+                // A bare NecessaryRouteSetup here is never honored — see
+                // `Tick::route_setup_candidate`, the only checked path.
+                .filter(|(kind, _)| !matches!(kind, WorkKind::NecessaryRouteSetup))
                 .filter_map(|(kind, promotion)| classify::classify(kind, promotion.as_ref()).ok())
                 .map(Candidate::Classified)
                 .collect();
+            if let Some(route) = &tick.route_setup_candidate {
+                if matches!(self.admit_route(route, elapsed), Admission::Admit) {
+                    if let Ok(class) = classify::classify(&WorkKind::NecessaryRouteSetup, None) {
+                        candidates.push(Candidate::Classified(class));
+                    }
+                }
+            }
             if let Some(evidence) = tick.emergency {
                 candidates.push(Candidate::Emergency(evidence));
             }
@@ -183,6 +214,7 @@ impl Harness {
                         } = band2_fairness::select_band2(
                             &mut self.band2_ledger,
                             &self.band2_policy,
+                            elapsed,
                             tick.band2_items,
                             usable,
                         );
@@ -267,9 +299,9 @@ mod tests {
         assert_eq!(h.admit_route(&route, Duration::ZERO), Admission::Admit);
 
         let mut t0 = tick(0);
-        t0.work_kinds.push((WorkKind::NecessaryRouteSetup, None));
+        t0.route_setup_candidate = Some(route.clone());
         let mut t1 = tick(1_000);
-        t1.work_kinds.push((WorkKind::NecessaryRouteSetup, None));
+        t1.route_setup_candidate = Some(route.clone());
         t1.route_outcome = Some((route.clone(), AttemptOutcome::NoProgress));
 
         let trace = h.run("normal-tier3", vec![t0, t1]);
@@ -281,6 +313,71 @@ mod tests {
             h.admit_route(&route, Duration::from_millis(1_000)),
             Admission::Deny { .. }
         ));
+    }
+
+    // Codex review finding on this PR: a tick could set
+    // `WorkKind::NecessaryRouteSetup` directly in `work_kinds`, which
+    // `classify::classify` accepts unconditionally — `run` never consulted
+    // `RouteAttemptTracker` for it, so a route already backed off by a
+    // prior `NoProgress` outcome could still win another full `RouteSetup`
+    // lease turn. This reproduces exactly that attempted bypass (both via
+    // the raw `work_kinds` entry and via the checked
+    // `route_setup_candidate` field) within one still-active lease (a very
+    // long lease duration keeps `LeaseController` itself out of the way, so
+    // only the route-admission enforcement under test decides the outcome)
+    // and confirms both are refused.
+    #[test]
+    fn a_backed_off_route_cannot_win_a_lease_turn_either_path() {
+        // Every tick also carries a harmless GridDiscovery candidate so the
+        // lease never hits "nothing eligible" (which releases permanently
+        // for the rest of the lease, per `lease::LeaseController`). That
+        // keeps the assertions below driven purely by whether
+        // NecessaryRouteSetup was (correctly) filtered out: if the bypass
+        // this test targets were still open, `decide` would see
+        // `necessary_route_setup: true` and grant `RouteSetup` ahead of
+        // `Control` regardless of GridDiscovery also being eligible —
+        // lease.rs checks route setup first.
+        let mut h = harness(1_000_000, 400_000, 0);
+        let route: RouteId = "dest-a".to_string();
+
+        let mut setup = tick(0);
+        setup.route_setup_candidate = Some(route.clone());
+        let mut fail = tick(100);
+        fail.work_kinds.push((WorkKind::GridDiscovery, None));
+        fail.route_outcome = Some((route.clone(), AttemptOutcome::NoProgress));
+
+        let mut bypass_attempt = tick(120);
+        bypass_attempt
+            .work_kinds
+            .push((WorkKind::GridDiscovery, None));
+        bypass_attempt
+            .work_kinds
+            .push((WorkKind::NecessaryRouteSetup, None));
+        let mut checked_attempt = tick(120);
+        checked_attempt
+            .work_kinds
+            .push((WorkKind::GridDiscovery, None));
+        checked_attempt.route_setup_candidate = Some(route.clone());
+
+        let trace = h.run(
+            "normal-tier3",
+            vec![setup, fail, bypass_attempt, checked_attempt],
+        );
+        assert_eq!(trace.events[0].decision, "RouteSetup");
+        assert!(matches!(
+            h.admit_route(&route, Duration::from_millis(120)),
+            Admission::Deny { .. }
+        ));
+        assert_eq!(
+            trace.events[2].decision, "Control",
+            "a bare WorkKind::NecessaryRouteSetup in work_kinds must never be honored \
+             (a fixed harness falls through to the other eligible work, GridDiscovery, \
+             instead of granting RouteSetup)"
+        );
+        assert_eq!(
+            trace.events[3].decision, "Control",
+            "the checked path must also refuse a still-backed-off route"
+        );
     }
 
     #[test]
