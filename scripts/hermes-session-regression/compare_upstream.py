@@ -11,6 +11,8 @@ import tarfile
 
 from test_ipc import semaphore_env
 import os
+import hashlib
+import re
 
 HISTORICAL = '5c76adff754de49c0b934c7fd7bddf7619b0c3d6'
 CURRENT = '0fee4a53f54074ad6237b9fa1083a272cac89f60'
@@ -19,6 +21,14 @@ p.add_argument('--source', type=Path, required=True, help='upstream Git clone')
 p.add_argument('--out', type=Path, required=True, help='fresh results directory')
 a = p.parse_args()
 here = Path(__file__).resolve().parent
+patch_path = here.parent.parent/'lab/phase1/hermes-vara-discard-stale-data.patch'
+notice = patch_path.with_name('HERMES_PATCH_NOTICE.md').read_text()
+assert hashlib.sha256(patch_path.read_bytes()).hexdigest() == re.search(r'SHA-256: `([0-9a-f]{64})`', notice)[1]
+manifest = subprocess.check_output(['git','apply','--numstat',str(patch_path)],text=True)
+assert {line.split('\t')[2] for line in manifest.splitlines()} == {
+    'uucpd/'+name for name in ('call_uucico.c','net.c','shm.c','shm.h','uucpd.c','uucpd.h','uuport.c','vara.c')
+}
+assert all(line.split('\t')[0].isdigit() for line in manifest.splitlines())
 a.out.mkdir(parents=True, exist_ok=False)
 results = []
 for label, sha, patch, variant in [

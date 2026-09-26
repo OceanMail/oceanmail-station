@@ -260,10 +260,6 @@ index a443f36..8707820
  
  bool shm_is_created(key_t key, size_t size);
  
-diff --git a/uucpd/uucpd b/uucpd/uucpd
-new file mode 100755
-index 0000000..2207afd
-Binary files /dev/null and b/uucpd/uucpd differ
 diff --git a/uucpd/uucpd.c b/uucpd/uucpd.c
 old mode 100644
 new mode 100755
@@ -322,10 +318,6 @@ index 98bc014..ca770a0 100644
      atomic_bool send_break;
  
      atomic_int session_counter_read;
-diff --git a/uucpd/uuport b/uucpd/uuport
-new file mode 100755
-index 0000000..fe93eab
-Binary files /dev/null and b/uucpd/uuport differ
 diff --git a/uucpd/uuport.c b/uucpd/uuport.c
 index 5da1124..ed9dc65 100644
 --- a/uucpd/uuport.c

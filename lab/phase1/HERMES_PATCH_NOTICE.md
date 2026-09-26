@@ -5,7 +5,7 @@
 - Repository: https://github.com/Rhizomatica/hermes-net
 - Exact upstream SHA: `0fee4a53f54074ad6237b9fa1083a272cac89f60`
 - Artifact: `hermes-vara-discard-stale-data.patch` (historical filename, retirement replacement).
-- SHA-256: `3abb221c95505155e585ea142b215c2f646894ee301f11b8c0ac54efdf6f089d`
+- SHA-256: `4c5f2d17092eca8c685fbe18017c18b8803d1c0e47a4a25477dd0a06ae262136`
 - Scope: eight files under upstream `uucpd/`; no permanent OceanMail modem fork.
 - Reason: old bridge writes and retained RX/TX bytes contaminate subsequent sessions; negative TCP reads/EINTR are mishandled.
 - Reproducer/tests: [HERMES_SESSION_REPLACEMENT.md](../../docs/HERMES_SESSION_REPLACEMENT.md).
