@@ -4,11 +4,11 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 root="$PWD/.quality/tools"
 mkdir -p "$root/bin" "$root/provenance"
-python3 -m venv --clear "$root/python"
-"$root/python/bin/python" -m pip install --report "$root/provenance/python-install.json" -r .quality/requirements.txt
+python3.13 -m venv --clear "$root/python"
+"$root/python/bin/python" -m pip install --report "$root/provenance/python-install.json" --require-hashes -r .quality/requirements.lock
 "$root/python/bin/python" -m pip freeze --all >"$root/provenance/python-freeze.txt"
-python3 -m venv --clear "$root/semgrep"
-"$root/semgrep/bin/python" -m pip install --report "$root/provenance/semgrep-install.json" -r .quality/semgrep-requirements.txt
+python3.13 -m venv --clear "$root/semgrep"
+"$root/semgrep/bin/python" -m pip install --report "$root/provenance/semgrep-install.json" --require-hashes -r .quality/semgrep-requirements.lock
 "$root/semgrep/bin/python" -m pip freeze --all >"$root/provenance/semgrep-freeze.txt"
 rustup component add --toolchain 1.98.1 clippy rustfmt llvm-tools-preview
 cargo +1.98.1 install --locked --root "$root/rust" cargo-llvm-cov --version 0.6.19
@@ -31,4 +31,4 @@ curl -fsSL https://github.com/hadolint/hadolint/releases/download/v2.15.1/checks
 cp "$root/provenance/hadolint-linux-x86_64" "$root/bin/hadolint"
 chmod +x "$root/bin/hadolint"
 sha256sum "$root/bin/"* "$root/rust/bin/"* >"$root/provenance/binaries.sha256"
-printf 'export PATH=%q:%q:%q:%q:"$PATH"\n' "$root/python/bin" "$root/semgrep/bin" "$root/rust/bin" "$root/bin" >"$root/env.sh"
+printf "export PATH=%q:%q:%q:%q:\"\$PATH\"\n" "$root/python/bin" "$root/semgrep/bin" "$root/rust/bin" "$root/bin" >"$root/env.sh"
