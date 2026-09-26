@@ -20,7 +20,11 @@ use tokio::process::Command;
 use uuid::Uuid;
 
 pub mod auth;
+pub mod band2_fairness;
+pub mod classify;
 pub mod lease;
+pub mod route_admission;
+pub mod scheduling_harness;
 
 pub type AnyError = Box<dyn Error + Send + Sync>;
 
