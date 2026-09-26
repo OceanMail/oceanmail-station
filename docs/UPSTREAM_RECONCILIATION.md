@@ -74,6 +74,10 @@ coverage. Discard the obsolete reviewed-head comparator, private review JSON
 bundles and old workflow duplication; retain the old small patch only as a test
 fixture. No archive commit history is merged or published.
 
+The archive's unresolved restart review finding is fixed, not ported unchanged:
+daemon startup now atomically preserves/excludes live bridge and daemon claims
+before replacing shared memory. A new process-death/restart regression covers it.
+
 From #51 retain exact-source verification, upstream tests, container retry path and
 actual container provenance. Replace candidate-specific Dockerfile/workflow with
 the normal build and permanent comparison coverage. Do not retain `f8e3935` as the

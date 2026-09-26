@@ -29,6 +29,7 @@ common=['gcc','-O2','-g','-Wall','-ffunction-sections','-fdata-sections','-no-pi
  '-DTEST_BRIDGE_SEMAPHORE',f'-I{src}/uucpd',f'-I{src}/include','-pthread','-Wl,--gc-sections']
 def source(name): return str(src/'uucpd'/name)
 groups=[
+ ('startup',[str(here/'startup_test.c'),source('shm.c')],[('restart-live-bridge',[])],False),
  ('workers', ['-DVARIANT=2',f'-DVARA_SOURCE="{source("vara.c")}"',str(here/'session_test.c'),
                source('net.c'),source('circular_buffer.c'),source('shm.c')],[(x,[x]) for x in worker_cases],True),
  ('net',[f'-DNET_SOURCE="{source("net.c")}"',str(here/'net_test.c')],
@@ -45,7 +46,7 @@ results=[]; repeats={}; failed=False
 def run(binary,case,args,label):
     start=time.monotonic()
     try:
-        with semaphore_env(env) as test_env:
+        with semaphore_env(env, keyed=(case=='restart-live-bridge')) as test_env:
             r=subprocess.run([str(binary),*args],capture_output=True,text=True,env=test_env,timeout=18)
         out,err,code=r.stdout,r.stderr,r.returncode
     except subprocess.TimeoutExpired as e:

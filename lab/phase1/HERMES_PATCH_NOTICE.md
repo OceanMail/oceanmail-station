@@ -5,7 +5,7 @@
 - Repository: https://github.com/Rhizomatica/hermes-net
 - Exact upstream SHA: `0fee4a53f54074ad6237b9fa1083a272cac89f60`
 - Artifact: `hermes-vara-discard-stale-data.patch` (historical filename, retirement replacement).
-- SHA-256: `7c7d134b836d385ea0f4ec842be1e4d0c78a4112440f84e4fc8fc8210e64a3f1`
+- SHA-256: `3abb221c95505155e585ea142b215c2f646894ee301f11b8c0ac54efdf6f089d`
 - Scope: eight files under upstream `uucpd/`; no permanent OceanMail modem fork.
 - Reason: old bridge writes and retained RX/TX bytes contaminate subsequent sessions; negative TCP reads/EINTR are mishandled.
 - Reproducer/tests: [HERMES_SESSION_REPLACEMENT.md](../../docs/HERMES_SESSION_REPLACEMENT.md).
@@ -31,3 +31,9 @@ old modem output. No ARDOP session, physical RF or production-security proof.
 Removal criteria: advance to an exact upstream SHA that passes the behavioral
 regressions unmodified and full combined Pulse/UUCP/interruption/returned-receipt
 acceptance. Delete patch/application; retain permanent regression tests.
+
+Startup atomically claims bridge and daemon semaphore slots before touching shared
+rings. An active daemon or surviving bridge makes startup fail closed. The set is
+reused after process death; it is never removed or reset on restart. An older
+one-slot semaphore set is incompatible and also fails closed; stop all old
+processes and use a fresh IPC namespace when upgrading from the archive candidate.

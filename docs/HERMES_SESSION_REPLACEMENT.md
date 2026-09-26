@@ -37,6 +37,9 @@ public Station's initial main, not a second production patch.
   and tries another session before releasing the old process. Cleanup must wait,
   reject premature entry, and deliver the subsequent greeting exactly.
 - Real abortive TCP close, invalid descriptor and injected EINTR exercise `net.c`.
+- Restart kills a real daemon process while a bridge process retains its claim.
+  Startup must refuse both a live daemon and a surviving bridge, preserve the
+  existing semaphore, then recover only after both claims are released by death.
 - The full patched suite additionally covers process death, incoming pipe/ring
   backpressure, SIGTERM before exec, partial TX/EAGAIN, receive/reset shutdown,
   continuous tails/EINTR fairness, repeated sessions, late local-disconnect ACK,
@@ -48,7 +51,8 @@ DISCONNECTED command, honoring current upstream's live-session-only kill policy.
 Mutex-only implementation probes are restricted to the patched variant; behavioral
 comparisons run on unmodified upstream without inventing a production mutex.
 The test replaces `system(killall)` with hooks that target only its own child.
-Semaphores use IPC_PRIVATE and Python-parent cleanup. TSan tests only in-process
+Semaphores use IPC_PRIVATE, or an exclusively created random key for restart,
+with Python-parent cleanup. TSan tests only in-process
 cases; fork/SysV assertions run normally and with ASan/UBSan. Leak checking is
 disabled, and sanitizer success alone does not establish cross-process ordering.
 
@@ -60,6 +64,13 @@ retains duplicate/late-notification handling under the RX mutex, arms pending
 disconnect before writing the command, and retains upstream's 90-second fallback
 inside the retirement wait. It waits for the bridge claim and drains/resets rings
 before reopening. No new UUCP process is admitted while old workers can write.
+
+The archive review identified a startup hole: deleting an existing semaphore
+forgets a surviving external bridge. This port corrects it with an atomic two-slot
+startup claim before touching shared memory. A daemon owns its second slot for
+its process lifetime; the first protects bridges and initialization. SEM_UNDO
+permits recovery after death without resetting live claims. Incompatible legacy
+semaphore sets fail closed and require a coordinated upgrade/fresh IPC namespace.
 
 The upstream pre-agreed `-F`/`-Y` option remains off; the lab uses stock Taylor UUCP.
 The protocol boundary remains Mercury's VARA-compatible control/data TCP pair.

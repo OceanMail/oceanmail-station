@@ -16,6 +16,7 @@ RUN git clone https://github.com/Rhizomatica/hermes-net.git /src/hermes-net \
     && test "$HERMES_NET_SHA" = 0fee4a53f54074ad6237b9fa1083a272cac89f60 \
     && test "$(git rev-parse HEAD)" = "$HERMES_NET_SHA" \
     && make -C uuxcomp \
+    && bash uuxcomp/tests/run_tests.sh \
     && install -m 0755 uuxcomp/uuxcomp /out-uuxcomp \
     && install -m 0755 uuxcomp/crmail /out-crmail \
     && install -m 0755 system_scripts/email/mail_size_enforcement.sh /out-mail-size-enforcement
