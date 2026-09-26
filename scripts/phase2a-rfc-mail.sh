@@ -7,9 +7,9 @@ set -euo pipefail
 
 PHASE1_IMAGE="${PHASE1_IMAGE:-oceanmail-uucp-lab:phase1}"
 PHASE2_IMAGE="${PHASE2_IMAGE:-oceanmail-mail-lab:phase2}"
-HERMES_NET_SHA="5c76adff754de49c0b934c7fd7bddf7619b0c3d6"
-MERCURY_TAG="v1.9.13"
-MERCURY_SHA="4eac25e06a0c88996621bc74af5b7b2f0d353848"
+HERMES_NET_SHA="0fee4a53f54074ad6237b9fa1083a272cac89f60"
+MERCURY_TAG=""
+MERCURY_SHA="638193b9a9cc5ab15f272805af116e94b2fdf4c6"
 MERCURY_DIR="${UPSTREAM_BASE:-$HOME/Projects/upstream}/mercury"
 LOG_BASE="${LOG_BASE:-$HOME/oceanmail-logs}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -91,7 +91,7 @@ printf 'PASS: Phase 2 Postfix/UUCP station image ready\n'
 section "Verify pinned Mercury"
 cd "$MERCURY_DIR"
 git fetch --tags --prune origin >"$RUN_DIR/mercury-fetch.log" 2>&1
-TAG_SHA="$(git rev-parse "refs/tags/$MERCURY_TAG^{commit}")"
+TAG_SHA="$(git rev-parse "${MERCURY_TAG:+refs/tags/}${MERCURY_TAG:-$MERCURY_SHA}^{commit}")"
 [[ "$TAG_SHA" == "$MERCURY_SHA" ]] || {
     printf 'ERROR: Mercury tag resolved to %s, expected %s\n' "$TAG_SHA" "$MERCURY_SHA" >&2
     exit 2

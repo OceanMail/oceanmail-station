@@ -1,0 +1,65 @@
+diff --git a/uucpd/vara.c b/uucpd/vara.c
+index 1b8fb1c..e4c4ef1 100644
+--- a/uucpd/vara.c
++++ b/uucpd/vara.c
+@@ -30,6 +30,7 @@
+ #include <arpa/inet.h>
+ #include <sched.h>
+ #include <unistd.h>
++#include <errno.h>
+ 
+ #include "uucpd.h"
+ #include "net.h"
+@@ -79,6 +80,26 @@ exit_local:
+     return EXIT_SUCCESS;
+ }
+ 
++static void vara_discard_stale_data(rhizo_conn *connector)
++{
++    uint8_t buffer[BUFFER_SIZE];
++    ssize_t bytes_read;
++    size_t bytes_discarded = 0;
++
++    do {
++        bytes_read = recv(connector->data_socket, buffer, sizeof(buffer), MSG_DONTWAIT);
++        if (bytes_read > 0)
++            bytes_discarded += (size_t) bytes_read;
++    } while (bytes_read > 0);
++
++    if (bytes_read < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
++        fprintf(stderr, "Error draining retired VARA data, errno: %d\n", errno);
++
++    if (bytes_discarded > 0)
++        fprintf(stderr, "Discarded %zu stale VARA data bytes at retired session boundary.\n",
++                bytes_discarded);
++}
++
+ void *vara_data_worker_thread_rx(void *conn)
+ {
+     rhizo_conn *connector = (rhizo_conn *) conn;
+@@ -101,6 +122,13 @@ void *vara_data_worker_thread_rx(void *conn)
+             goto exit_local;
+         }
+ 
++        /* The control socket may report DISCONNECTED while this blocking data
++         * read is still in flight. Never carry a byte from that retired
++         * session into a later UUCP session. */
++        if (connector->connected == false) {
++            continue;
++        }
++
+         while (circular_buf_free_size(connector->out_buffer) < 1)
+         {
+             usleep(100000); // 100ms
+@@ -374,9 +402,11 @@ void *vara_control_worker_thread_tx(void *conn)
+             usleep(1200000); // sleep for threads finish their jobs (more than 1s here)
+ 
+             fprintf(stderr, "Connection closed. Cleaning internal buffers.\n");
++            vara_discard_stale_data(connector);
+             circular_buf_reset(connector->in_buffer);
+             circular_buf_reset(connector->out_buffer);
+ 
+             connector->clean_buffers = false;
+ 			connector->buffer_size = 0;
++            fprintf(stderr, "Connection cleanup complete.\n");
+         }

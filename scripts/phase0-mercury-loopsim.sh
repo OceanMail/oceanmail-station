@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # OceanMail Station 0.2 — Phase 0 Mercury loopsim acceptance runner
-# Builds pinned Mercury v1.9.13 and runs its upstream two-instance ALSA loop test.
+# Builds pinned Mercury development revision and runs its upstream two-instance ALSA loop test.
 # Does not install packages or install Mercury system-wide.
 
 set -euo pipefail
 
 MERCURY_REPO="https://github.com/Rhizomatica/mercury.git"
-MERCURY_TAG="v1.9.13"
-MERCURY_SHA="4eac25e06a0c88996621bc74af5b7b2f0d353848"
+MERCURY_TAG=""
+MERCURY_SHA="638193b9a9cc5ab15f272805af116e94b2fdf4c6"
 UPSTREAM_BASE="${UPSTREAM_BASE:-$HOME/Projects/upstream}"
 MERCURY_DIR="$UPSTREAM_BASE/mercury"
 LOG_BASE="${LOG_BASE:-$HOME/oceanmail-logs}"
@@ -83,7 +83,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 git fetch --tags --prune origin
-TAG_SHA="$(git rev-parse "refs/tags/$MERCURY_TAG^{commit}")"
+TAG_SHA="$(git rev-parse "${MERCURY_TAG:+refs/tags/}${MERCURY_TAG:-$MERCURY_SHA}^{commit}")"
 if [[ "$TAG_SHA" != "$MERCURY_SHA" ]]; then
     printf 'ERROR: %s resolved to %s, expected %s.\n' "$MERCURY_TAG" "$TAG_SHA" "$MERCURY_SHA" >&2
     exit 2

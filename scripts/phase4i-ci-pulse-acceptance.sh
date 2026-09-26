@@ -31,7 +31,7 @@ text = path.read_text()
 old = '''section "Verify pinned Mercury"
 cd "$MERCURY_DIR"
 git fetch --tags --prune origin >"$RUN_DIR/mercury-fetch.log" 2>&1
-TAG_SHA="$(git rev-parse "refs/tags/$MERCURY_TAG^{commit}")"
+TAG_SHA="$(git rev-parse "${MERCURY_TAG:+refs/tags/}${MERCURY_TAG:-$MERCURY_SHA}^{commit}")"
 [[ "$TAG_SHA" == "$MERCURY_SHA" ]] || { printf 'ERROR: Mercury pin mismatch\\n' >&2; exit 2; }
 git switch --detach "$MERCURY_SHA" >/dev/null
 make -j"$(nproc)" >"$RUN_DIR/mercury-build.log" 2>&1
@@ -67,7 +67,11 @@ if count != 1:
         f"ERROR: Phase 2B Mercury verify/start block: expected exactly one source block, found {count}"
     )
 
-path.write_text(text.replace(old, new, 1))
+text = text.replace(old, new, 1)
+# The run header must identify the container actually tested.
+text = text.replace('MERCURY_TAG=""', 'MERCURY_TAG="${OCEANMAIL_MERCURY_TAG-}"', 1)
+text = text.replace('MERCURY_SHA="638193b9a9cc5ab15f272805af116e94b2fdf4c6"', 'MERCURY_SHA="${OCEANMAIL_MERCURY_SHA:-638193b9a9cc5ab15f272805af116e94b2fdf4c6}"', 1)
+path.write_text(text)
 print("PASS: CI adapter selected containerized pinned Mercury without changing canonical acceptance semantics")
 PY
 

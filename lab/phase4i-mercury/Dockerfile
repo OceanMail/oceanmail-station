@@ -1,7 +1,7 @@
 FROM debian:trixie
 
-ARG MERCURY_TAG=v1.9.13
-ARG MERCURY_SHA=4eac25e06a0c88996621bc74af5b7b2f0d353848
+ARG MERCURY_TAG=
+ARG MERCURY_SHA=638193b9a9cc5ab15f272805af116e94b2fdf4c6
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -12,6 +12,7 @@ RUN apt-get update \
        libasound2-dev \
        libpulse-dev \
        libhamlib-dev \
+       libssl-dev \
        pulseaudio \
        pulseaudio-utils \
        python3 \
@@ -23,10 +24,11 @@ RUN apt-get update \
 RUN git clone https://github.com/Rhizomatica/mercury.git /opt/mercury \
     && cd /opt/mercury \
     && git fetch --tags --prune origin \
-    && test "$(git rev-parse "refs/tags/${MERCURY_TAG}^{commit}")" = "$MERCURY_SHA" \
+    && if [ -n "$MERCURY_TAG" ]; then test "$(git rev-parse "refs/tags/${MERCURY_TAG}^{commit}")" = "$MERCURY_SHA"; fi \
     && git checkout --detach "$MERCURY_SHA" \
     && test "$(git rev-parse HEAD)" = "$MERCURY_SHA" \
     && make -j"$(nproc)" \
+    && make test \
     && make -C utils/loopsim \
     && printf '%s\n' "$MERCURY_TAG" > /opt/mercury/.oceanmail-tag \
     && printf '%s\n' "$MERCURY_SHA" > /opt/mercury/.oceanmail-sha

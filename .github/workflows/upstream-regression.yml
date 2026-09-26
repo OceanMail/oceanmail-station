@@ -1,0 +1,83 @@
+name: HERMES and Mercury upstream regression
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hermes-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Compare exact upstream revisions and the temporary patch
+        run: |
+          git clone https://github.com/Rhizomatica/hermes-net.git "$RUNNER_TEMP/hermes"
+          python3 scripts/hermes-session-regression/compare_upstream.py \
+            --source "$RUNNER_TEMP/hermes" --out "$RUNNER_TEMP/comparison"
+      - name: Build and exercise all retirement cases with sanitizers
+        run: |
+          make -C "$RUNNER_TEMP/comparison/current-patched/uucpd" -j2
+          python3 scripts/hermes-session-regression/run_tests.py \
+            --replacement "$RUNNER_TEMP/comparison/current-patched" --tsan --repeat 10
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hermes-regression-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/comparison/results.json
+            ${{ runner.temp }}/comparison/*-build.log
+            scripts/hermes-session-regression/*results.json
+            scripts/hermes-session-regression/logs/
+  mercury-comparison:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        sha:
+          - 4eac25e06a0c88996621bc74af5b7b2f0d353848
+          - f8e3935909f845e99d783b7ff99be86c4cebb910
+          - 8a47831882c9751b1fee5bcbf5f9de11fb46ac4b
+          - 638193b9a9cc5ab15f272805af116e94b2fdf4c6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Build, run upstream unit tests, and verify exact source
+        env:
+          SHA: ${{ matrix.sha }}
+        run: |
+          set -o pipefail
+          docker build --progress plain --build-arg "MERCURY_SHA=$SHA" \
+            -f lab/phase4i-mercury/Dockerfile -t oceanmail-mercury:comparison . 2>&1 | tee mercury-build.log
+          OCEANMAIL_MERCURY_DOCKER_IMAGE=oceanmail-mercury:comparison \
+            OCEANMAIL_MERCURY_SHA="$SHA" bash scripts/phase4i-mercury-docker-loop.sh verify-pin
+      - name: Pulse loop with this exact Mercury revision
+        env:
+          OCEANMAIL_MERCURY_DOCKER_IMAGE: oceanmail-mercury:comparison
+          OCEANMAIL_MERCURY_SHA: ${{ matrix.sha }}
+        run: |
+          trap 'bash scripts/phase4i-mercury-docker-loop.sh stop' EXIT
+          bash scripts/phase4i-mercury-docker-loop.sh start
+          bash scripts/phase4i-mercury-docker-loop.sh drive 1024 180
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: mercury-${{ matrix.sha }}-${{ github.run_id }}
+          path: |
+            mercury-build.log
+            /tmp/mA.log
+            /tmp/mB.log

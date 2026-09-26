@@ -1,6 +1,6 @@
 FROM debian:trixie AS builder
 
-ARG HERMES_NET_SHA=5c76adff754de49c0b934c7fd7bddf7619b0c3d6
+ARG HERMES_NET_SHA=0fee4a53f54074ad6237b9fa1083a272cac89f60
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -14,6 +14,7 @@ COPY lab/phase1/hermes-vara-discard-stale-data.patch /tmp/hermes-vara-discard-st
 RUN git clone https://github.com/Rhizomatica/hermes-net.git /src/hermes-net \
     && cd /src/hermes-net \
     && git checkout --detach "$HERMES_NET_SHA" \
+    && test "$HERMES_NET_SHA" = 0fee4a53f54074ad6237b9fa1083a272cac89f60 \
     && test "$(git rev-parse HEAD)" = "$HERMES_NET_SHA" \
     && git apply --check /tmp/hermes-vara-discard-stale-data.patch \
     && git apply /tmp/hermes-vara-discard-stale-data.patch \
@@ -24,7 +25,7 @@ RUN git clone https://github.com/Rhizomatica/hermes-net.git /src/hermes-net \
 
 FROM debian:trixie
 
-ARG HERMES_NET_SHA=5c76adff754de49c0b934c7fd7bddf7619b0c3d6
+ARG HERMES_NET_SHA=0fee4a53f54074ad6237b9fa1083a272cac89f60
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
