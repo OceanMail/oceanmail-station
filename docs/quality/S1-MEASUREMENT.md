@@ -4,12 +4,11 @@ Source/tooling head: `2f22edba9a57ae7782fec0f9f27b81f555eaaed5` (clean before an
 Base: `ec9e5f232aac722bae25a979098100cc3c0dbaf9`.
 Measurement: 2026-09-22T22:01:27.125616+00:00 through 2026-09-22T22:01:45.505309+00:00.
 
-The following evidence-only commit adds this document and the sealed raw report;
-no application, test, tool or configuration change follows the measured source.
-Final PR-head rerun and CI dispatch URLs/SHAs are recorded in the draft PR and
-local review handoff. A source measurement is not synthetic-merge CI evidence.
-
-The raw source report archive is retained only in the private historical repository because it contains local environment paths. It is intentionally omitted from this fresh source release. The measurements below are historical reported results, not independently reproducible evidence supplied by this repository.
+This document summarizes the historical measurement of the source identified above.
+The measurements below are historical reported results, not current-commit CI
+or a reproducible evidence bundle. Raw environment-specific reports are not
+included. Run the [measurement tooling](../../.quality/README.md) on the desired
+public commit to obtain fresh evidence.
 
 ## STATIC / UNIT and local process evidence
 

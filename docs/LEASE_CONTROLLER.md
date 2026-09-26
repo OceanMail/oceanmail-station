@@ -6,19 +6,14 @@
 are exported by the Station library but none is wired into the daemon or an RF
 adapter.
 
-The archived tracking issue #22 was closed on 2026-09-22 even though the PR that
-closed it stated explicitly that its first (`lease.rs`) slice did not close #22,
-and the project workstream record
-([`oceanmail-project/workstreams/station.md`](https://github.com/OceanMail/oceanmail-project/blob/main/workstreams/station.md))
-asks for a follow-up tracker to be designated before further implementation is
-assigned. No such tracker has been designated as of this PR. The slices below
-are that follow-on implementation; they do not themselves resolve the tracking
-gap, which remains an owner/project-spine decision.
+The initial lease controller and subsequent classification/admission/fairness
+modules are present in public source. Track remaining production integration work
+in public issues; the implementation and test boundaries below remain explicit.
 
 Authority: [ADR-008](https://github.com/OceanMail/oceanmail-project/blob/main/docs/decisions/ADR-008-four-band-scheduling-and-channel-use.md).
-The owner clarified on 2026-09-21 that ten/four minutes were convenient arithmetic
-examples. `LeasePolicy::new(duration, control_cap)` requires independent explicit
-values. There is no default duration, fixed 40% relationship, or wire constant.
+Ten/four minutes are arithmetic examples, not selected defaults.
+`LeasePolicy::new(duration, control_cap)` requires independent explicit values.
+There is no default duration, fixed 40% relationship, or wire constant.
 Zero control allowance and a full-lease control allowance are supported;
 zero-length leases and caps exceeding their lease are rejected.
 

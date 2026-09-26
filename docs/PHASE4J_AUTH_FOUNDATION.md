@@ -1,10 +1,9 @@
 # Phase 4J — laboratory authentication foundation
 
-Status: first implementation slice of issue #23; not completion of #23, not
-production identity, and not permission to expose the Station on a LAN.
+Status: laboratory authentication foundation; not production identity or
+permission to expose the Station on a LAN.
 
-Authority: [issue #23's bounded implementation direction](https://github.com/OceanMail/oceanmail-station-archive/issues/23#issuecomment-5623955763),
-the [Available account contract](AVAILABLE_MANIFEST_ACCOUNT_CONTRACT.md), and
+Authority: the [Available account contract](AVAILABLE_MANIFEST_ACCOUNT_CONTRACT.md), and
 [storage/key-separation gates](PHASE4_STORAGE_SECURITY.md).
 
 ## Implemented boundary

@@ -1,23 +1,23 @@
-# Fresh source publication
+# Public source status
 
-Owner-approved 2026-09-26: this repository starts with sanitized current source
-and a new initial commit. Pre-publication Git history, numbered issues/PRs,
-Actions records and recovery copies remain in a separate private repository
-with an `-archive` suffix. They are not imported into this repository.
-Links to those historical resources require private access. Historical commit
-IDs and test reports are provenance records, not new-repository CI evidence.
+Project, Station, Desktop, Server and Infrastructure are public OceanMail source
+repositories. Source publication began on 2026-09-26. The public repository trees,
+issues, pull requests and Actions runs are the contributor-facing project record.
+Documentation must be understandable using these public resources alone.
 
-The public source licenses are installed in LICENSE and LICENSE-DOCS;
-LICENSING.md defines scope and preserves third-party terms. This record
-supersedes older statements that the license choice is still pending.
-No DCO or additional inbound agreement is adopted by this migration.
+OceanMail-owned code is licensed under **AGPL-3.0-only** and documentation under
+**CC-BY-SA-4.0**. See [LICENSING.md](LICENSING.md), [LICENSE](LICENSE) and
+[LICENSE-DOCS](LICENSE-DOCS). Third-party licenses and notices remain in force.
+No DCO or additional inbound agreement has been adopted.
 
-Unmerged development branches remain private. Transfer selected changes only
-after review, using new commits without importing the original Git ancestry.
-Never mirror-push the private repository into this one.
+All five repositories have protected `main` branches and GitHub-hosted checks.
+Use a fork or topic branch and a pull request; maintainers review and merge.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+An end-to-end external-fork acceptance test remains unverified; successful
+same-repository checks do not establish that result.
 
-Before public cutover: verify this tree, required hosted CI, runner exclusion,
-read-only Actions defaults and repository access. Configure protection with
-zero required approving reviews and required checks. Enable private vulnerability
-reporting at public cutover and validate the external-fork workflow.
-Public source availability is not a production, radio or safety certification.
+Older technical results, where summarized in the documentation, are historical
+context rather than checks of the current public commit. Use the public Actions
+runs for current CI evidence. Source availability does not establish production
+readiness, binary redistribution clearance, live GUI acceptance or RF performance.
+Server and Infrastructure remain bootstrap repositories, not deployed services.

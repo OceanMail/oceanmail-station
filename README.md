@@ -62,7 +62,7 @@ The former OceanMail 0.1 communications architecture is preserved in historical 
 
 ## Quality baseline
 
-[S1 report-only measurement](.quality/README.md) inventories owned source and records lint/types/tests/coverage/security evidence. No diagnostic baseline or required quality gate is established. Missing/partial measurements remain unknown, and report-only success is not clean CI. [Issue #53](https://github.com/OceanMail/oceanmail-station-archive/issues/53) tracks independent review before any later retrofit phase.
+[S1 report-only measurement](.quality/README.md) inventories owned source and records lint/types/tests/coverage/security evidence. No diagnostic baseline or required quality gate is established. Missing/partial measurements remain unknown, and report-only success is not clean CI. Further retrofit phases require independent review and a separate assignment.
 
 
 ## Source publication and licenses

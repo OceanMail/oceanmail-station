@@ -69,12 +69,12 @@ The contract is architecture/documentation. It does not itself implement HTTP en
 
 ## Current API/security boundary
 
-Phase 4J implements the bounded first slice of issue #23: runtime-provisioned
+Phase 4J implements the bounded first slice of production authentication work: runtime-provisioned
 laboratory bearer credentials, immutable principal/account/device context,
 explicit account permissions and protected loopback context endpoints. See
 [`PHASE4J_AUTH_FOUNDATION.md`](PHASE4J_AUTH_FOUNDATION.md) for the exact contract,
 runtime provisioning, acceptance tests, and remaining gates. It is not completion
-of #23 and does not implement #24's Available/retrieval/accounting APIs.
+of production authentication and does not implement the Available/retrieval/accounting APIs.
 
 The legacy evidence API remains unauthenticated loopback laboratory diagnostics;
 `api_authentication` remains false for that API as a whole. Never use these routes
@@ -115,7 +115,7 @@ Implementation of the full scheduler/Grid/gateway behavior remains future work; 
 
 Phase 4I proved a reciprocal-session defect in the pinned HERMES VARA/Mercury data bridge. OceanMail carries a narrow tracked laboratory patch because retired UUCP tail bytes could otherwise leak into a later reciprocal session and produce `OOOOOO` where Taylor expected the new `Shere` greeting.
 
-`Rhizomatica/hermes-net/main` was rechecked on 2026-09-11 and still does not contain the OceanMail stale-tail guard/drain or explicit cleanup-complete boundary. Upstream follow-up is tracked in issue #35. Until an upstream fix is deliberately accepted and the pin is advanced/retested, preserve the explicit patch/provenance and Phase 4I lifecycle gates.
+`Rhizomatica/hermes-net/main` was rechecked on 2026-09-11 and still does not contain the OceanMail stale-tail guard/drain or explicit cleanup-complete boundary. Upstream follow-up is tracked in upstream lifecycle work. Until an upstream fix is deliberately accepted and the pin is advanced/retested, preserve the explicit patch/provenance and Phase 4I lifecycle gates.
 
 ## Immediate next work
 
@@ -133,17 +133,12 @@ persistent (restart-durable) fairness/backoff ledger, ADR-007 capacity-tier
 integration, real channel coordination, and RF/transport validation remain
 open.
 
-The archived tracking issue #22 was closed on 2026-09-22 even though the
-merged PR's own description said its first slice did not close #22; the
-project workstream record still asks for a follow-up tracker to be
-designated before further implementation is assigned, and none has been as
-of this work. See `LEASE_CONTROLLER.md`'s introduction for the exact
-evidence trail.
+Remaining scheduler work needs public tracking and separately scoped implementation.
 
-1. issue #23 — authenticated, permission-scoped Station API and stable account/user/device context;
-2. issue #24 — account-scoped Available manifest, retrieval intent, and working-ledger API after #23;
-3. [ADR-008](https://github.com/OceanMail/oceanmail-project/blob/main/docs/decisions/ADR-008-four-band-scheduling-and-channel-use.md) follow-on (tracking gap above): classification, admission/backoff, Band 2 fairness, and a composed no-radio harness are implemented and unit-tested; persistent/restart-durable accounting, ADR-007 capacity-tier integration, real single-radio channel/check-in behavior, and daemon transport dispatch remain outstanding;
-4. issue #35 — upstream HERMES reciprocal-session stale-TCP-tail report/fix while retaining the accepted local laboratory delta until upstream resolution is proven;
+1. production authentication work — authenticated, permission-scoped Station API and stable account/user/device context;
+2. Available API work — account-scoped Available manifest, retrieval intent, and working-ledger API after production authentication;
+3. [ADR-008](https://github.com/OceanMail/oceanmail-project/blob/main/docs/decisions/ADR-008-four-band-scheduling-and-channel-use.md) follow-on (remaining scope above): classification, admission/backoff, Band 2 fairness, and a composed no-radio harness are implemented and unit-tested; persistent/restart-durable accounting, ADR-007 capacity-tier integration, real single-radio channel/check-in behavior, and daemon transport dispatch remain outstanding;
+4. upstream lifecycle work — upstream HERMES reciprocal-session stale-TCP-tail report/fix while retaining the accepted local laboratory delta until upstream resolution is proven;
 5. production storage encryption and per-user key separation;
 6. scheduler/resource accounting, Grid/control state, relay/gateway execution, and API expansion as separately bounded phases;
 7. physical-radio validation only after explicit Phase 5 authorization.
@@ -156,4 +151,7 @@ Keep implementation evidence separated into STATIC / UNIT, INTEGRATION, and LIVE
 
 ## CI retrofit S1
 
-[Issue #53](https://github.com/OceanMail/oceanmail-station-archive/issues/53) adds [report-only measurement tooling](../.quality/README.md), coordinated by [Project G0 draft #44](https://github.com/OceanMail/oceanmail-project-archive/pull/44). Exact-head reports and established no-radio dispatch evidence accompany the draft PR. Existing application behavior, upstream pins and Phase 4I evidence semantics are unchanged. Baseline, cleanup, required CI and branch protection are not established; further retrofit work awaits review and separate owner direction.
+[Report-only measurement tooling](../.quality/README.md) records historical
+diagnostics separately from current public CI. It does not establish a diagnostic
+baseline or enforce quality ratchets. Public `main` is protected and requires
+hosted checks; further retrofit work needs review and a separate assignment.

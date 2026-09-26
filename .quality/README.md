@@ -1,7 +1,7 @@
 # Station S1 report-only measurement
 
-Scope: [Station #53](https://github.com/OceanMail/oceanmail-station-archive/issues/53),
-coordinated by [Project G0 draft #44](https://github.com/OceanMail/oceanmail-project-archive/pull/44).
+Scope: Station S1 report-only measurement, coordinated by the public
+[quality rollout](https://github.com/OceanMail/oceanmail-project/blob/main/docs/specifications/ci-quality-retrofit.md).
 No S2 cleanup, S3 adapter/baseline, required quality workflow or protection is
 implemented here. Existing source, assertions, locks, workflow triggers and
 HERMES/Mercury pins stay authoritative.

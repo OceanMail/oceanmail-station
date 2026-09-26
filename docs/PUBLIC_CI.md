@@ -14,7 +14,7 @@ unchanged. This migration does not accept candidate upstream changes in
 PRs #51/#52, quality work in #59, RF operation or production security.
 
 Administrators must exclude this repository from every trusted self-hosted
-runner group and repository-scoped runner before publication. PR workflow edits
+runner group and repository-scoped runner whenever configuration changes. PR workflow edits
 can select different runners; current YAML cannot enforce that external boundary.
 Local workstations and hardware labs remain deliberate maintainer operations,
 never automatic public PR targets.
