@@ -363,6 +363,16 @@ mod tests {
     fn auth(config: &serde_json::Value) -> LabAuth {
         LabAuth::from_json("station-a".into(), &config.to_string()).unwrap()
     }
+    /// `context`/`account_context` check expiry against the real wall clock
+    /// (`crate::now_unix()`), unlike `authenticate()`'s other unit tests,
+    /// which pass an explicit small `now`. Tests that go through the actual
+    /// HTTP handlers need a credential that is not already expired relative
+    /// to real time, not `config()`'s fixed `expires_at_unix: 1000`.
+    fn config_valid_at_real_now() -> serde_json::Value {
+        let mut c = config();
+        c["credentials"][0]["expires_at_unix"] = 9_999_999_999i64.into();
+        c
+    }
     fn headers(token: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -500,5 +510,70 @@ mod tests {
         assert_eq!(first, serde_json::to_string(&second).unwrap());
         assert!(!first.contains(&"a".repeat(64)));
         assert!(!first.contains("token"));
+    }
+
+    // Audit finding: `account_context`'s cross-account filter (the
+    // `retain(...)` call that keeps only the requested account's grants out
+    // of a credential that may hold grants to several accounts) had no test
+    // exercising the actual HTTP-level handler/response. The underlying
+    // logic was correct, but nothing would have caught a regression that
+    // dropped or weakened that filter. This calls the real handler, not
+    // just `RequestContext::require_account`, so a future regression here
+    // fails a test instead of only failing in production.
+    #[tokio::test]
+    async fn account_context_endpoint_excludes_other_accounts_grants() {
+        let mut c = config_valid_at_real_now();
+        c["credentials"][0]["account_grants"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "account_id": "account-b",
+                "permissions": ["context_read"]
+            }));
+        let auth_state = auth(&c);
+
+        let response = account_context(
+            State(auth_state),
+            ApiPath("account-a".to_string()),
+            headers(&"a".repeat(64)),
+        )
+        .await
+        .expect("authorized account-a request succeeds");
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body is readable");
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let grants = value["account_grants"].as_array().unwrap();
+        assert_eq!(
+            grants.len(),
+            1,
+            "must not leak the account-b grant when account-a was requested"
+        );
+        assert_eq!(grants[0]["account_id"], "account-a");
+    }
+
+    // Same code path, denied side: a credential with real grants elsewhere
+    // must not disclose account-scoped context for an account it was never
+    // granted, and the response must carry no cache/store trace of it.
+    #[tokio::test]
+    async fn account_context_endpoint_denies_ungranted_account_without_leaking_headers() {
+        let auth_state = auth(&config_valid_at_real_now());
+
+        let error = account_context(
+            State(auth_state),
+            ApiPath("account-not-granted".to_string()),
+            headers(&"a".repeat(64)),
+        )
+        .await
+        .expect_err("must be denied for an account with no grant");
+        assert_eq!(error, AuthError::Forbidden);
+
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).unwrap(),
+            "no-store"
+        );
     }
 }

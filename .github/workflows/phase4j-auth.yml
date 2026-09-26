@@ -37,7 +37,7 @@ jobs:
           printf '%s\n' "$CARGO_HOME/bin" >> "$GITHUB_PATH"
       - name: Unit and authorization-isolation tests
         run: |
-          rustfmt --edition 2021 --check src/auth.rs src/lease.rs
+          rustfmt --edition 2021 --check src/auth.rs src/band2_fairness.rs src/classify.rs src/lease.rs src/route_admission.rs src/scheduling_harness.rs
           cargo test --locked
       - name: Real-process loopback HTTP acceptance
         run: |

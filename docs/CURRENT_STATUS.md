@@ -119,16 +119,30 @@ Phase 4I proved a reciprocal-session defect in the pinned HERMES VARA/Mercury da
 
 ## Immediate next work
 
-Issue #22 first slice: the library now contains a configurable, in-memory lease
-controller with deterministic tests. Lease duration and normal control allowance
-are independent explicit inputs, with no fixed ten-minute/four-minute or 40%
-rule. See [`LEASE_CONTROLLER.md`](LEASE_CONTROLLER.md) for its caller contract and
-remaining integration gates. It is not yet used by daemon transport dispatch;
-full scheduler, persistent fairness/accounting and channel validation remain open.
+Configurable lease controller and ADR-008 follow-on: the library contains a
+deterministic, in-memory lease controller (`src/lease.rs`), typed traffic
+classification (`src/classify.rs`), bounded route-attempt admission/backoff
+(`src/route_admission.rs`), Band 2 fair selection (`src/band2_fairness.rs`),
+and a no-radio scheduling harness composing all four with deterministic,
+machine-readable traces (`src/scheduling_harness.rs`), all with deterministic
+STATIC/UNIT tests. Lease duration and normal control allowance are independent
+explicit inputs, with no fixed ten-minute/four-minute or 40% rule. See
+[`LEASE_CONTROLLER.md`](LEASE_CONTROLLER.md) for each module's caller contract
+and remaining gates. None of this is used by daemon transport dispatch; a
+persistent (restart-durable) fairness/backoff ledger, ADR-007 capacity-tier
+integration, real channel coordination, and RF/transport validation remain
+open.
+
+The archived tracking issue #22 was closed on 2026-09-22 even though the
+merged PR's own description said its first slice did not close #22; the
+project workstream record still asks for a follow-up tracker to be
+designated before further implementation is assigned, and none has been as
+of this work. See `LEASE_CONTROLLER.md`'s introduction for the exact
+evidence trail.
 
 1. issue #23 — authenticated, permission-scoped Station API and stable account/user/device context;
 2. issue #24 — account-scoped Available manifest, retrieval intent, and working-ledger API after #23;
-3. issue #22 — implement [ADR-008](https://github.com/OceanMail/oceanmail-project/blob/main/docs/decisions/ADR-008-four-band-scheduling-and-channel-use.md): Bands 0–3, Band 1 cap/necessary route exception, remaining-time Band 2 with local/relay fairness, unreserved shared broadcasts, and single-radio channel/check-in behavior; design accepted, runtime implementation outstanding;
+3. [ADR-008](https://github.com/OceanMail/oceanmail-project/blob/main/docs/decisions/ADR-008-four-band-scheduling-and-channel-use.md) follow-on (tracking gap above): classification, admission/backoff, Band 2 fairness, and a composed no-radio harness are implemented and unit-tested; persistent/restart-durable accounting, ADR-007 capacity-tier integration, real single-radio channel/check-in behavior, and daemon transport dispatch remain outstanding;
 4. issue #35 — upstream HERMES reciprocal-session stale-TCP-tail report/fix while retaining the accepted local laboratory delta until upstream resolution is proven;
 5. production storage encryption and per-user key separation;
 6. scheduler/resource accounting, Grid/control state, relay/gateway execution, and API expansion as separately bounded phases;
