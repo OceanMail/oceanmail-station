@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # OceanMail Station 0.2 — Phase 1B UUCP-over-Mercury transfer acceptance
 # Runs two isolated Debian 13 UUCP stations through HERMES uucpd/uuport and
-# the pinned Mercury v1.9.13 two-instance ALSA loopsim channel.
+# the pinned Mercury development revision two-instance ALSA loopsim channel.
 
 set -euo pipefail
 
 IMAGE="${IMAGE:-oceanmail-uucp-lab:phase1}"
 DIRECTION="${DIRECTION:-a2b}"
 PAYLOAD_SIZE="${PAYLOAD_SIZE:-1024}"
-HERMES_NET_SHA="5c76adff754de49c0b934c7fd7bddf7619b0c3d6"
+HERMES_NET_SHA="0fee4a53f54074ad6237b9fa1083a272cac89f60"
 MERCURY_REPO="https://github.com/Rhizomatica/mercury.git"
-MERCURY_TAG="v1.9.13"
-MERCURY_SHA="4eac25e06a0c88996621bc74af5b7b2f0d353848"
+MERCURY_TAG=""
+MERCURY_SHA="638193b9a9cc5ab15f272805af116e94b2fdf4c6"
 UPSTREAM_BASE="${UPSTREAM_BASE:-$HOME/Projects/upstream}"
 MERCURY_DIR="$UPSTREAM_BASE/mercury"
 LOG_BASE="${LOG_BASE:-$HOME/oceanmail-logs}"
@@ -115,7 +115,7 @@ if [[ ! -d "$MERCURY_DIR/.git" ]]; then
 fi
 cd "$MERCURY_DIR"
 git fetch --tags --prune origin >"$RUN_DIR/mercury-fetch.log" 2>&1
-TAG_SHA="$(git rev-parse "refs/tags/$MERCURY_TAG^{commit}")"
+TAG_SHA="$(git rev-parse "${MERCURY_TAG:+refs/tags/}${MERCURY_TAG:-$MERCURY_SHA}^{commit}")"
 if [[ "$TAG_SHA" != "$MERCURY_SHA" ]]; then
     printf 'ERROR: Mercury tag %s resolved to %s, expected %s\n' "$MERCURY_TAG" "$TAG_SHA" "$MERCURY_SHA" >&2
     exit 2

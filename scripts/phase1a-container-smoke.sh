@@ -6,7 +6,7 @@
 set -euo pipefail
 
 IMAGE="${IMAGE:-oceanmail-uucp-lab:phase1}"
-HERMES_NET_SHA="5c76adff754de49c0b934c7fd7bddf7619b0c3d6"
+HERMES_NET_SHA="0fee4a53f54074ad6237b9fa1083a272cac89f60"
 LOG_BASE="${LOG_BASE:-$HOME/oceanmail-logs}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_DIR="$LOG_BASE/phase1a-container-$RUN_ID"
@@ -53,7 +53,7 @@ printf "uucico: "
 /usr/sbin/uucico --version | head -n 1
 printf "HERMES net pin: "
 cat /usr/local/share/oceanmail/hermes-net.sha
-test "$(cat /usr/local/share/oceanmail/hermes-net.sha)" = "5c76adff754de49c0b934c7fd7bddf7619b0c3d6"
+test "$(cat /usr/local/share/oceanmail/hermes-net.sha)" = "0fee4a53f54074ad6237b9fa1083a272cac89f60"
 test -x /usr/local/bin/uucpd
 test -x /usr/local/bin/uuport
 printf "uucpd: present at /usr/local/bin/uucpd\n"

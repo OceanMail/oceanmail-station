@@ -1,5 +1,12 @@
 # OceanMail Station — Current Status
 
+> Dependency reconciliation merged on 2026-09-26: current HERMES
+> `0fee4a53f54074ad6237b9fa1083a272cac89f60` with an isolated temporary retirement
+> patch, and unmodified Mercury `638193b9a9cc5ab15f272805af116e94b2fdf4c6`.
+> [Current inputs, regression and acceptance gates](UPSTREAM_RECONCILIATION.md)
+> supersede dependency selection below; older phase evidence remains historical.
+
+
 Updated: 2026-09-19
 
 This is the authoritative live implementation-status document for `OceanMail/oceanmail-station`.
@@ -40,7 +47,7 @@ Exact accepted upstream pins and integration-delta policy are authoritative in [
 - Phase 0 — Mercury loopsim: **COMPLETE**.
 - Phase 1 — Taylor UUCP / HERMES durable store-forward: **COMPLETE**.
 - Phase 2 — RFC mail + HERMES compression path: **COMPLETE**.
-- Phase 3 — standard SMTP/IMAP client path: **COMPLETE**, including the merged Debian trixie/Dovecot 2.4 compatibility and writable-IMAP proof from PR #25 (`51869c31e8f80aa32d0abad1747c32ab07e0fd5d`). The accepted Phase 3A path proves authenticated writable IMAP and an explicit `\Seen` state transition after non-mutating `BODY.PEEK[]` retrieval.
+- Phase 3 — standard SMTP/IMAP client path: **COMPLETE**, including the merged Debian trixie/Dovecot 2.4 compatibility and writable-IMAP proof recorded in the [upstream baseline](UPSTREAM_BASELINE.md). The accepted Phase 3A path proves authenticated writable IMAP and an explicit `\Seen` state transition after non-mutating `BODY.PEEK[]` retrieval.
 - Phase 4A–4H — persistent Station, evidence correlation, transport progress, and far-side mailbox evidence: **COMPLETE**.
 - Phase 4I — returned receipt evidence across the reciprocal constrained path: **COMPLETE**.
 
@@ -48,13 +55,13 @@ Canonical Phase 4I evidence and exact accepted CI/artifact details remain in [`P
 
 `returned_remote_receipt_observed` means the origin Station received, structurally validated, and correlated the returned laboratory receipt to the original message/job. Accepted trust remains exactly `lab_peer_transport_unverified`; this is not production cryptographic peer authentication and is not human-read proof.
 
-A reconciliation rerun on PR #25 exposed one nondeterministic Phase 4I laboratory readiness failure (`original-message attempt snapshot missing`) that passed on immediate rerun with the exact same source/head. Issue #42 is now closed by merged PR #47 (`65d75cb96b0b1247f598c49a60a11b8cba68e5b8`): an explicit bounded durable state/evidence gate, including a final fresh read after caller completion, replaces the readiness race. Current-base Phase 4I run `35559385475` passed on source `b001a11d085baa3b0bc3abe419f90f99034bf136`; the exact snapshot, far-side mailbox proof, session retirement, negative pre-return assertion, returned receipt correlation, and restart durability all passed. The trust state remains `lab_peer_transport_unverified`; no physical-radio evidence is claimed.
+A historical Dovecot compatibility rerun exposed one nondeterministic Phase 4I laboratory readiness failure (`original-message attempt snapshot missing`) that passed on immediate rerun with the exact same source/head. The merged readiness correction addresses the race: an explicit bounded durable state/evidence gate, including a final fresh read after caller completion, replaces the readiness race. Current-base Phase 4I run `35559385475` passed on source `b001a11d085baa3b0bc3abe419f90f99034bf136`; the exact snapshot, far-side mailbox proof, session retirement, negative pre-return assertion, returned receipt correlation, and restart durability all passed. The trust state remains `lab_peer_transport_unverified`; no physical-radio evidence is claimed.
 
 Physical-radio Phase 5 remains held until explicitly authorized with a suitable hardware/test scope.
 
 ## Available/account contract
 
-PR #26 merged on 2026-09-11 (merge commit `7a132b6ea4967c600dc8c673718d00b09c3ad42b`). The logical Available/account-authorization/retrieval-plan foundation is now accepted Station documentation.
+The logical Available/account-authorization/retrieval-plan foundation was accepted on 2026-09-11 and is included in the public [contract](AVAILABLE_MANIFEST_ACCOUNT_CONTRACT.md).
 
 Current boundaries include:
 

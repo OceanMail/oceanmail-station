@@ -8,7 +8,9 @@
 # clean_buffers path. The OceanMail lab patch emits an explicit completion
 # marker only after stale VARA tail bytes are drained, buffers are reset, and
 # clean_buffers is cleared. Reciprocal work is allowed only after that marker
-# has caught up with every disconnect and no live bridge process remains.
+# has caught up with every effective disconnect and no live bridge remains.
+# Current upstream explicitly ignores duplicate notifications while idle; only
+# its exact acknowledgement cancels that notification, never a real retirement.
 
 set -euo pipefail
 
@@ -18,6 +20,7 @@ TIMEOUT_SECONDS="${3:-30}"
 POLL_SECONDS="${4:-0.1}"
 DISCONNECT_MARKER='TNC: DISCONNECTED'
 CLEAN_MARKER='Connection cleanup complete.'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [[ "$TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || {
     printf 'ERROR: timeout must be a positive integer\n' >&2
@@ -26,22 +29,8 @@ CLEAN_MARKER='Connection cleanup complete.'
 
 boundary_state() {
     local name="$1"
-    docker exec "$name" awk \
-        -v disconnected="$DISCONNECT_MARKER" \
-        -v clean="$CLEAN_MARKER" '
-            index($0, disconnected) {
-                disconnects++
-                latest="disconnect"
-            }
-            index($0, clean) {
-                cleans++
-                latest="clean"
-            }
-            END {
-                if (latest == "") latest="none"
-                printf "%s %d %d\n", latest, disconnects + 0, cleans + 0
-            }
-        ' /evidence/uucpd.log 2>/dev/null
+    docker exec -i "$name" awk -f - /evidence/uucpd.log \
+        < "$SCRIPT_DIR/phase4i-hermes-boundary.awk" 2>/dev/null
 }
 
 bridge_busy() {
@@ -60,8 +49,8 @@ start="$(date +%s)"
 last_state=''
 
 while :; do
-    read -r a_latest a_disconnects a_cleans < <(boundary_state "$A_NAME")
-    read -r b_latest b_disconnects b_cleans < <(boundary_state "$B_NAME")
+    read -r a_latest a_disconnects a_cleans a_ignored < <(boundary_state "$A_NAME")
+    read -r b_latest b_disconnects b_cleans b_ignored < <(boundary_state "$B_NAME")
 
     a_busy=0
     b_busy=0
@@ -79,7 +68,7 @@ while :; do
 
     now="$(date +%s)"
     elapsed="$((now - start))"
-    state="A_latest=$a_latest A_disc=$a_disconnects A_clean_count=$a_cleans A_busy=$a_busy B_latest=$b_latest B_disc=$b_disconnects B_clean_count=$b_cleans B_busy=$b_busy"
+    state="A_latest=$a_latest A_disc=$a_disconnects A_clean_count=$a_cleans A_ignored=$a_ignored A_busy=$a_busy B_latest=$b_latest B_disc=$b_disconnects B_clean_count=$b_cleans B_ignored=$b_ignored B_busy=$b_busy"
 
     if [[ "$state" != "$last_state" ]]; then
         printf 'HERMES lifecycle: %s elapsed=%ss\n' "$state" "$elapsed"
@@ -91,13 +80,13 @@ while :; do
         docker exec "$A_NAME" awk \
             -v disconnected="$DISCONNECT_MARKER" \
             -v clean="$CLEAN_MARKER" \
-            'index($0, disconnected) || index($0, clean) { line=$0 } END { print line }' \
+            'index($0, disconnected) || index($0, clean) || index($0, "DISCONNECTED with no link up, ignoring.") { line=$0 } END { print line }' \
             /evidence/uucpd.log 2>/dev/null || true
         printf 'HERMES B final boundary: '
         docker exec "$B_NAME" awk \
             -v disconnected="$DISCONNECT_MARKER" \
             -v clean="$CLEAN_MARKER" \
-            'index($0, disconnected) || index($0, clean) { line=$0 } END { print line }' \
+            'index($0, disconnected) || index($0, clean) || index($0, "DISCONNECTED with no link up, ignoring.") { line=$0 } END { print line }' \
             /evidence/uucpd.log 2>/dev/null || true
         printf 'PASS: both HERMES peers reached explicit cleanup-complete boundary with no live uucico/uuport active\n'
         exit 0

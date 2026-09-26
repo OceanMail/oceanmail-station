@@ -1,6 +1,8 @@
 # OceanMail Station — Upstream Baseline
 
-Snapshot baseline: 2026-09-03. Reciprocal-session integration delta accepted in no-radio Phase 4I on 2026-09-10.
+Reconciliation merged on 2026-09-26 in [Station PR #3](https://github.com/OceanMail/oceanmail-station/pull/3).
+Exact-head public CI remains the acceptance gate for future changes.
+See [reconciliation findings and implementation](UPSTREAM_RECONCILIATION.md).
 
 This document records the external components selected for OceanMail 0.2 Station proofs. It is a reproducibility and boundary record, not a vendoring list.
 
@@ -22,7 +24,8 @@ Repository: https://github.com/Rhizomatica/mercury
 
 Role: HF modem and ARQ data link.
 
-Current reproducible baseline: **v1.9.13**, commit `4eac25e06a0c88996621bc74af5b7b2f0d353848`.
+Current reproducible input: unmodified development commit `638193b9a9cc5ab15f272805af116e94b2fdf4c6`.
+Latest release evaluated: v1.9.15 (`8a47831882c9751b1fee5bcbf5f9de11fb46ac4b`).
 
 Development branch to track: `mercuryv2`.
 
@@ -33,7 +36,7 @@ Why:
 - HERMES `uucpd` already consumes that interface; OceanMail does not need a modem-specific transport shim.
 - Mercury includes a two-instance ALSA loopback testbed (`utils/loopsim`) that can exercise two real modem instances on one Linux host without radio hardware.
 - Phase 4I additionally proved exact pinned Mercury through a disposable Debian/PulseAudio container on the OceanMail self-hosted runner, avoiding a host `snd-aloop` requirement while preserving the same TCP TNC boundary.
-- Pinning v1.9.13 gives the current lab a repeatable input while upstream development continues.
+- The exact development pin includes post-v1.9.15 stale-RX, session-resurrection and forced-exit fixes; permanent comparison CI retains the earlier releases/candidate.
 
 License note: the repository is identified by GitHub as GPL-3.0. Preserve upstream license/notices and re-check the exact applicable terms before distribution.
 
@@ -41,7 +44,7 @@ License note: the repository is identified by GitHub as GPL-3.0. Preserve upstre
 
 Repository: https://github.com/Rhizomatica/hermes-net
 
-Current baseline commit: `5c76adff754de49c0b934c7fd7bddf7619b0c3d6`.
+Current input commit: `0fee4a53f54074ad6237b9fa1083a272cac89f60`.
 
 Critical pieces:
 
@@ -53,51 +56,27 @@ The upstream Mercury systemd configuration intentionally runs `uucpd` with the V
 
 License note: do **not** infer the `uucpd` license from the repository-level GitHub badge. `uucpd/LICENSE` is GNU AGPL v3 and the README also contains inconsistent GPL/AGPL wording. Treat `uucpd` as AGPLv3-covered for OceanMail planning unless clarified upstream. Keep it as a separate upstream program and preserve its applicable source/license obligations for any downstream modification/distribution.
 
-#### Accepted Phase 4I laboratory integration patch
+#### Temporary HERMES integration patch
 
-Phase 4I exposed a rapid reciprocal-session defect at this exact HERMES pin. After a completed A -> B UUCP conversation, stale end-of-conversation bytes could remain in HERMES's persistent VARA/Mercury TCP data stream and appear at the start of the B -> A session. Taylor then received old `OOOOOO` bytes where the new slave `Shere` greeting was expected.
+**Temporary downstream integration delta pending upstream resolution.**
+Current unmodified upstream still fails executable delayed-bridge, retained TX,
+stale RX/tail and TCP error regressions. The old drain-only patch is replaced by
+the isolated session-retirement patch. Both uucpd and uuport must be rebuilt and
+restarted together. Exact source SHA, patch SHA-256, licensing, reproducer,
+limitations and removal criteria are in
+[HERMES_PATCH_NOTICE.md](../lab/phase1/HERMES_PATCH_NOTICE.md).
 
-OceanMail therefore carries one narrow tracked laboratory patch:
+Builds reject unexpected upstream SHAs and require `git apply --check` before
+applying the patch. Permanent hosted regression and combined acceptance cover
+the selected HERMES + patch + unmodified Mercury combination.
 
-```text
-lab/phase1/hermes-vara-discard-stale-data.patch
-```
+### libcmime — superseded dependency
 
-Against exact HERMES commit:
-
-```text
-5c76adff754de49c0b934c7fd7bddf7619b0c3d6
-```
-
-The patch:
-
-- discards a blocking data read if the session has already transitioned to disconnected;
-- drains retired TCP tail bytes during the old-session cleanup boundary;
-- emits `Connection cleanup complete.` after final buffer reset and cleanup-state clearing.
-
-The self-hosted Phase 4I workflow requires `git apply --check`, applies the patch only to the exact pin, compiles `uucpd`/`uuport`, and then runs the full returned-receipt acceptance. Accepted run `34517583360` passed and is recorded in [`PHASE4I_RETURNED_RECEIPT_EVIDENCE.md`](PHASE4I_RETURNED_RECEIPT_EVIDENCE.md).
-
-This is an accepted **laboratory integration delta**, not a declaration that OceanMail owns or has forked HERMES architecture. It does not authorize unreviewed downstream changes. A production/distribution decision must revisit upstream status, licensing/source obligations, and whether the fix can be carried upstream or the pin advanced to an upstream resolution.
-
-### libcmime
-
-Repository: https://github.com/spmfilter/libcmime
-
-Role: MIME dependency used by the HERMES `uuxcomp` / `crmail` mail-compression path in the Phase 2B-derived laboratory images.
-
-Current reproducible baseline: **0.2.2**, commit `dd21eb096d162656e30243f60fc4bc35ad39ae6e`.
-
-License note: `COPYING` at the pinned commit is the MIT License. Preserve the copyright/license notice when distributing copies or substantial portions.
-
-#### Current laboratory build delta
-
-The Phase 2B image applies [`libcmime-empty-sender.patch`](../lab/phase2b/libcmime-empty-sender.patch) only to exact commit `dd21eb096d162656e30243f60fc4bc35ad39ae6e`, with `git apply --check` before application. The patch replaces `asprintf(&sender, "");` with `sender = "";` in `cmime_message_set_sender`.
-
-This makes the existing laboratory edit explicit; it does not introduce a new behavior change. Static comparison against the pinned upstream file proves the patched bytes equal the previous Dockerfile substitution (patched file SHA-256 `066607f2917f618f00fd373be1207ec911e59507f0c11540c0d30eccf8d49869`). The original call passes the address of a `const char *` to an allocation API expecting `char **`. The existing replacement supplies the empty fallback directly. The original historical diagnostic is not available, so this is a source-level compatibility rationale, not a reconstructed claim about an old build failure.
-
-The upstream MIT [`COPYING`](../lab/phase2b/libcmime-COPYING) is preserved beside the patch. The final laboratory image copies upstream `COPYING` directly from the pinned checkout and includes [`libcmime-NOTICE`](../lab/phase2b/libcmime-NOTICE), including source-file attribution and the downstream delta. Image construction asserts both notices exist.
-
-The Phase 3A mail-client and Phase 4I returned-receipt acceptance must pass on this change before merge. No production suitability or complete combined-image license clearance is claimed. Upstream resolution, source obligations for other components, and the chosen OceanMail license remain separate publication/distribution gates.
+Current upstream HERMES removed libcmime in its email-header rewrite. The lab
+therefore removes its build, old compatibility patch and image notices. Historical
+0.2.2 pin/patch evidence remains in Git; it is not part of the current image.
+The compressed uuxcomp/crmail path remains enabled and is gated by fresh mail
+and returned-receipt acceptance.
 
 ## Deferred upstream components
 

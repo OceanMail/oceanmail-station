@@ -72,9 +72,16 @@ case "$ACTION" in
             python3 /opt/mercury/utils/loopsim/drive.py
         ;;
     verify-pin)
-        docker run --rm --entrypoint /bin/sh "$IMAGE" -lc '
-            test "$(cat /opt/mercury/.oceanmail-tag)" = "v1.9.13"
-            test "$(cat /opt/mercury/.oceanmail-sha)" = "4eac25e06a0c88996621bc74af5b7b2f0d353848"
+        docker run --rm --user root --entrypoint /bin/sh \
+            -e "EXPECTED_TAG=${OCEANMAIL_MERCURY_TAG-}" \
+            -e "EXPECTED_SHA=${OCEANMAIL_MERCURY_SHA:-638193b9a9cc5ab15f272805af116e94b2fdf4c6}" \
+            "$IMAGE" -lc '
+            set -eu
+            test "$(cat /opt/mercury/.oceanmail-tag)" = "$EXPECTED_TAG"
+            test "$(cat /opt/mercury/.oceanmail-sha)" = "$EXPECTED_SHA"
+            test "$(git -C /opt/mercury rev-parse HEAD)" = "$EXPECTED_SHA"
+            printf "Mercury source: %s\n" "$EXPECTED_SHA"
+            sha256sum /opt/mercury/mercury
         '
         printf 'PASS: Mercury container has exact OceanMail pin\n'
         ;;

@@ -115,7 +115,7 @@ INTEGRATION: real Station process/HTTP requests, two-account isolation, denied
 Admin/Operator/Captain cross-account access, forged identity headers, no-permission
 denial, expiry, restart/reprovision, grant removal on restart, no secret copies in
 responses/logs/SQLite, rejected LAN bind, rejected invalid/unsafe files and unchanged
-security flags. CI uses the existing trusted private self-hosted Linux runner.
+security flags. Public CI uses GitHub-hosted Linux runners; see [PUBLIC_CI.md](PUBLIC_CI.md).
 The separate Phase 4I workflow remains the no-radio receipt regression gate.
 
 LIVE / PRODUCT: no Desktop GUI, real account enrollment, LAN product service,
@@ -123,11 +123,11 @@ hardware, radio or production security acceptance is claimed.
 
 ## Blocked next boundaries
 
-Issue #23 remains open for accepted production enrollment/device proof, revocation
+Production authentication still requires accepted enrollment/device proof, revocation
 and disconnected lifetime, encrypted/key-separated persistence, and secured LAN
 acceptance. This lab credential format is not a production identity decision.
 
-Issue #24 and real Desktop Available cannot claim completion from this context
+The real Available/retrieval/ledger API and Desktop Available cannot claim completion from this context
 endpoint. Holder-authorized metadata provenance, stable logical object bindings,
 protected persistence and revocation/expiry of background intent must be accepted
 before real private catalog/plan operations. Accounting must remain unavailable

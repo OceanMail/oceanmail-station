@@ -120,14 +120,13 @@ are retained. Complete transitive reproducibility is not claimed.
 
 ## Remaining evidence boundaries
 
-Established Phase 3/4I/4J workflow dispatches must identify the final PR head;
-their results belong in the draft PR handoff. Current path filters exclude these
-tooling/docs changes, so no synthetic-merge run is automatically generated.
-No main-merge evidence exists because merging is not authorized. Existing
-candidate PRs #51/#52 and their failures/reruns remain independent; their green
-runs do not prove this head. LIVE / PRODUCT: none; no RF or production-security
+This S1 report predates the current public workflows and later tooling. For
+current acceptance, identify the exact public head and use its Phase 3/4I/4J
+workflow results; see [public CI](../PUBLIC_CI.md). Results from another
+revision do not validate the selected head. LIVE / PRODUCT: none; no RF or production-security
 claim. Embedded/generated code, other platforms, scanner build dependencies and
 Docker/apt/upstream advisories remain gaps as described in the tooling guide.
 
 No baseline, broad suppression, dependency/upstream promotion, source cleanup,
-required workflow or branch protection was introduced. S2 is not started.
+required workflow or branch protection was introduced by S1. Subsequent phase
+status is recorded in the [current tooling guide](../../.quality/README.md).
