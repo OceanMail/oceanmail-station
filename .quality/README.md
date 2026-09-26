@@ -1,10 +1,9 @@
-# Station S1 report-only measurement
+# Station quality measurement and S3a adapters
 
-Scope: [Station #53](https://github.com/OceanMail/oceanmail-station-archive/issues/53),
-coordinated by [Project G0 draft #44](https://github.com/OceanMail/oceanmail-project-archive/pull/44).
-No S2 cleanup, S3 adapter/baseline, required quality workflow or protection is
-implemented here. Existing source, assertions, locks, workflow triggers and
-HERMES/Mercury pins stay authoritative.
+This public port adds the draft S3a tooling described in [the handoff](S3A-HANDOFF.md).
+No production baseline or required quality gate is enabled. The original S1
+measurement and archive review are historical context, not current-head acceptance.
+Product source, dependency pins and existing workflow assertions remain unchanged.
 
 ## Run on Linux x86-64
 
@@ -47,7 +46,8 @@ scanner findings are separate metrics, not a combined passing-test total.
 Initial candidates derive from the owner's `OceanMail-CI-Retrofit-Kit`, dated
 2026-09-22; hashes are recorded in `kit-provenance.json`. The Station runner adapts
 its subprocess/output model with strict report parsing and target/test coverage.
-It does not invoke all-repository measurement or copy future ratchet adapters.
+It does not invoke all-repository measurement. The S3a adapters are separate
+from this report-only runner.
 
 | Tool | Direct pin | Scope |
 | --- | --- | --- |
@@ -58,13 +58,13 @@ It does not invoke all-repository measurement or copy future ratchet adapters.
 | basedpyright | 1.31.4 | Strict Linux Python 3.13, scripts and owned `.quality` code |
 | ShellCheck | 0.10.0 (shellcheck-py 0.10.0.1) | Every tracked shell script |
 | Hadolint | 2.15.1 | Every tracked Dockerfile |
-| actionlint | 1.7.7 | All three existing workflows; embedded ShellCheck enabled |
+| actionlint | 1.7.7 | All tracked workflows; embedded ShellCheck enabled |
 | Semgrep | 1.177.0 | Reviewed local Rust unsafe / Python eval / shell-process rules |
 | pip-audit | 2.9.0 | Both installed Python tool environments |
 
 `bootstrap.sh` uses Cargo `--locked`, pip install reports and freezes, upstream
-binary checksums and captured executable hashes. These are direct pins plus
-resolved-install evidence, **not a full transitive/hash lock**. Python, OS,
+binary checksums and captured executable hashes. The Python tool environments now use complete
+transitive hash locks and pip `--require-hashes`. Python, OS,
 system tools, advisory feeds and binary download endpoints have independent
 provenance/availability; complete enforcement/reproducibility belongs to S3/S4.
 The product `Cargo.lock` is unchanged. No mutable Semgrep registry rules or
@@ -103,7 +103,7 @@ cargo +1.98.1 build --locked
 python3 scripts/test-phase4j-auth.py -v
 ```
 
-Coverage includes all seven owned Rust files, including unexecuted binaries and
+Coverage inventories every tracked owned Rust file (eleven at the public port base), including unexecuted binaries and
 zero-hit lines; no owned-source filename exclusion is configured. Test functions
 are included in llvm-cov line totals, so these are instrumented file metrics,
 not a pure production-code-only percentage. Rust unit-test coverage does not
@@ -121,28 +121,23 @@ cryptographic trust or complete security coverage. Docker/apt/upstream binary
 advisories and Go/Haskell scanner build dependency audits remain gaps. Shell
 and Python coverage/runtime beyond the named acceptance suites is unmeasured.
 
-## Existing restricted runner group CI
+## Current hosted acceptance
 
-A `.quality`/documentation-only PR does not match current workflow path filters.
-After pushing the final branch head, use existing authorized dispatches:
+Existing public workflows run on pull requests. Dispatch the final topic branch
+as well to retain exact branch-head evidence, using `--repo OceanMail/oceanmail-station`:
 
 ```bash
-gh workflow run phase3-dovecot-compat.yml --ref quality/measure
-gh workflow run phase4i-linux-acceptance.yml --ref quality/measure
-gh workflow run phase4j-auth.yml --ref quality/measure
+gh workflow run phase3-dovecot-compat.yml --ref codex/quality-ratchet-port
+gh workflow run phase4i-linux-acceptance.yml --ref codex/quality-ratchet-port
+gh workflow run phase4j-auth.yml --ref codex/quality-ratchet-port
+gh workflow run upstream-regression.yml --ref codex/quality-ratchet-port
 ```
 
-Record each run URL, `headSha`, `event`, conclusion, job/step and artifacts.
-These dispatches prove the branch head, not a synthetic PR merge. If no
-synthetic-merge run exists, report that gap explicitly. Owner merge has not
-occurred, so there is no merged-main evidence. Preserve every failed attempt
-and unchanged-head rerun rather than calling intermittency repaired.
-
-Phase 3 uses the existing Dovecot/writable IMAP acceptance; Phase 4I preserves
-exact returned-receipt/session-retirement/negative-pre-return/restart assertions
-and trust `lab_peer_transport_unverified`; Phase 4J preserves auth/account
-isolation. Existing PRs #51/#52 are independent. No no-radio result proves
-production security, real GUI operation, hardware or physical-radio acceptance.
+Record run URLs, source SHAs, event types and conclusions. Keep branch-head and
+synthetic-merge evidence distinct. Failed attempts remain part of the evidence.
+Phase 3, 4I and 4J retain their Dovecot, receipt/session and account-isolation
+assertions. Upstream regression retains the accepted HERMES/Mercury combination.
+No no-radio result proves production security, hardware or physical-radio acceptance.
 
 Existing native suppression locations are inventoried separately; this is not a
 new suppression ledger. Ruff ignores `noqa` and Semgrep disables `nosemgrep`

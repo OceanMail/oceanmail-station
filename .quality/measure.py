@@ -7,6 +7,7 @@ All raw outputs survive findings, scanner errors, missing tools and timeouts.
 
 import argparse
 from collections import Counter
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -20,26 +21,72 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
+from typing import NotRequired, TypedDict
+
+from suppression_inventory import inventory, unsuppress_shell
+from diagnostics import array, decode, integer, obj, string
 
 ROOT = Path(__file__).resolve().parents[1]
 RUST = '1.98.1'
 
 
-def now():
+class Result(TypedDict):
+    name: str
+    argv: NotRequired[list[str]]
+    cwd: NotRequired[str]
+    started_at: NotRequired[str]
+    finished_at: NotRequired[str]
+    exit_code: NotRequired[int | None]
+    execution: NotRequired[str]
+    error: NotRequired[str]
+    seconds: NotRequired[float]
+    assessment: NotRequired[str]
+    metrics: NotRequired[dict[str, object] | None]
+    parse_error: NotRequired[str]
+    coverage: NotRequired['Coverage']
+    coverage_error: NotRequired[str]
+
+
+class FileCoverage(TypedDict):
+    executable_lines: int
+    hit_lines: int
+    percent: float | None
+
+
+class Coverage(TypedDict):
+    per_file: dict[str, FileCoverage]
+    missing_owned_files: list[str]
+    zero_hit_files: list[str]
+
+
+class Options(argparse.Namespace):
+    out: Path = ROOT / '.quality/reports'
+    timeout: float = 1800
+
+
+def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def write(path, data):
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+def write(path: Path, data: object) -> None:
+    _ = path.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
 
 
-def capture(argv, cwd=ROOT):
+def capture(argv: Sequence[str], cwd: Path = ROOT) -> str:
     return subprocess.check_output(argv, cwd=cwd, text=True, timeout=120).strip()
 
 
-def run(argv, cwd, out, name, timeout=1800, env=None):
+def run(
+    argv: Sequence[str],
+    cwd: Path,
+    out: Path,
+    name: str,
+    timeout: float = 1800,
+    env: Mapping[str, str] | None = None,
+) -> Result:
     """A process outcome is not a diagnostic interpretation."""
-    result = dict(name=name, argv=list(map(str, argv)), cwd=str(cwd), started_at=now())
+    command = list(argv)
+    result = Result(name=name, argv=command, cwd=str(cwd), started_at=now())
     start = time.monotonic()
     with (
         (out / f'{name}.stdout').open('w') as stdout,
@@ -47,7 +94,7 @@ def run(argv, cwd, out, name, timeout=1800, env=None):
     ):
         try:
             proc = subprocess.Popen(
-                result['argv'],
+                command,
                 cwd=cwd,
                 env=env,
                 stdout=stdout,
@@ -59,7 +106,7 @@ def run(argv, cwd, out, name, timeout=1800, env=None):
                 result['execution'] = 'COMPLETED'
             except subprocess.TimeoutExpired:
                 os.killpg(proc.pid, signal.SIGKILL)
-                proc.wait()
+                _ = proc.wait()
                 result.update(execution='TIMEOUT', exit_code=124)
         except OSError as exc:
             result.update(
@@ -69,21 +116,21 @@ def run(argv, cwd, out, name, timeout=1800, env=None):
     return result
 
 
-def require(condition, message):
+def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
 
 
-def parse(kind, stdout, stderr, rc):
+def parse(kind: str, stdout: str, stderr: str, rc: int | None) -> dict[str, object]:
     """Reject unknown/malformed schemas; preserve partial counts only as partial."""
     if kind == 'json':
         require(rc == 0, 'command failed')
-        return {'data': json.loads(stdout)}
+        return {'data': decode(stdout)}
     if kind in ('ruff', 'shellcheck', 'hadolint', 'actionlint'):
-        data = json.loads(stdout)
+        raw = decode(stdout)
         if kind == 'shellcheck':
-            data = data['comments']
-        require(isinstance(data, list), 'expected diagnostic list')
+            raw = obj(raw)['comments']
+        data = [obj(item) for item in array(raw)]
         require(rc in (0, 1), 'scanner execution failed')
         key = {
             'ruff': 'code',
@@ -102,37 +149,31 @@ def parse(kind, stdout, stderr, rc):
             else False,
         }
     if kind == 'pyright':
-        data = json.loads(stdout)
-        require(
-            isinstance(data['generalDiagnostics'], list), 'invalid type diagnostics'
-        )
+        report = obj(decode(stdout))
+        type_diagnostics = [obj(item) for item in array(report['generalDiagnostics'])]
         require(rc in (0, 1), 'type checker setup failed')
-        summary = data['summary']
+        summary = obj(report['summary'])
         require(
             'filesAnalyzed' in summary and 'errorCount' in summary,
             'missing analysis totals',
         )
-        require(summary['filesAnalyzed'] > 0, 'no files analyzed')
-        require(
-            rc == 0 or bool(data['generalDiagnostics']), 'nonzero without diagnostics'
-        )
+        require(integer(summary['filesAnalyzed']) > 0, 'no files analyzed')
+        require(rc == 0 or bool(type_diagnostics), 'nonzero without diagnostics')
         return {
-            'findings': len(data['generalDiagnostics']),
+            'findings': len(type_diagnostics),
             'summary': summary,
             'by_rule': dict(
-                Counter(
-                    d.get('rule', d['severity']) for d in data['generalDiagnostics']
-                )
+                Counter(string(d.get('rule', d['severity'])) for d in type_diagnostics)
             ),
         }
     if kind == 'cargo':
-        records = [json.loads(line) for line in stdout.splitlines() if line.strip()]
+        records = [obj(decode(line)) for line in stdout.splitlines() if line.strip()]
         require(
             any(x.get('reason') == 'build-finished' for x in records),
             'missing cargo completion',
         )
         diagnostics = [
-            x['message'] for x in records if x.get('reason') == 'compiler-message'
+            obj(x['message']) for x in records if x.get('reason') == 'compiler-message'
         ]
         errors = sum(x['level'] == 'error' for x in diagnostics)
         warnings = [x for x in diagnostics if x['level'] == 'warning']
@@ -145,7 +186,10 @@ def parse(kind, stdout, stderr, rc):
             'compiler_errors': errors,
             'build_success': success and rc == 0,
             'by_rule': dict(
-                Counter((x.get('code') or {}).get('code', 'warning') for x in warnings)
+                Counter(
+                    string(obj(x.get('code') or {}).get('code', 'warning'))
+                    for x in warnings
+                )
             ),
             'diagnostics': diagnostics,
             'partial': not success or rc != 0,
@@ -215,56 +259,56 @@ def parse(kind, stdout, stderr, rc):
             ),
         }
     if kind == 'semgrep':
-        data = json.loads(stdout)
-        require(
-            isinstance(data['results'], list) and isinstance(data['errors'], list),
-            'invalid scan schema',
-        )
-        require(isinstance(data['paths']['scanned'], list), 'missing scanned paths')
+        report = obj(decode(stdout))
+        scan_results = [obj(item) for item in array(report['results'])]
+        scan_errors = array(report['errors'])
+        scanned = [string(item) for item in array(obj(report['paths'])['scanned'])]
         require(rc in (0, 1), 'scanner setup/engine failed')
         require(
-            rc == 0 or bool(data['results']) or bool(data['errors']),
+            rc == 0 or bool(scan_results) or bool(scan_errors),
             'nonzero without scan findings/errors',
         )
         return {
-            'findings': len(data['results']),
-            'partial': bool(data['errors']) or not data['paths']['scanned'],
-            'errors': data['errors'],
-            'scanned': data['paths']['scanned'],
+            'findings': len(scan_results),
+            'partial': bool(scan_errors) or not scanned,
+            'errors': scan_errors,
+            'scanned': scanned,
             'by_severity': dict(
-                Counter(x['extra']['severity'] for x in data['results'])
+                Counter(string(obj(x['extra'])['severity']) for x in scan_results)
             ),
         }
     if kind == 'audit':
-        data = json.loads(stdout)
+        report = obj(decode(stdout))
         require(rc in (0, 1), 'audit execution failed')
-        vulns = data['vulnerabilities']['list']
-        require(isinstance(vulns, list), 'invalid audit schema')
-        require(data['vulnerabilities']['count'] == len(vulns), 'audit count mismatch')
-        require('database' in data, 'missing advisory database metadata')
-        warnings = data.get('warnings', {})
+        vulnerabilities = obj(report['vulnerabilities'])
+        vulns = array(vulnerabilities['list'])
+        require(integer(vulnerabilities['count']) == len(vulns), 'audit count mismatch')
+        require('database' in report, 'missing advisory database metadata')
+        audit_warnings = {
+            key: array(value) for key, value in obj(report.get('warnings', {})).items()
+        }
         require(
-            rc == 0 or bool(vulns) or any(warnings.values()),
+            rc == 0 or bool(vulns) or any(audit_warnings.values()),
             'nonzero without advisories',
         )
         return {
             'findings': len(vulns),
             'advisories': vulns,
-            'warnings': warnings,
-            'warning_count': sum(len(v) for v in warnings.values()),
-            'database': data['database'],
+            'warnings': audit_warnings,
+            'warning_count': sum(len(v) for v in audit_warnings.values()),
+            'database': report['database'],
         }
     if kind == 'pip-audit':
-        data = json.loads(stdout)
+        report = obj(decode(stdout))
         require(rc in (0, 1), 'audit execution failed')
-        deps = data['dependencies']
-        require(isinstance(deps, list) and bool(deps), 'missing audited dependencies')
+        deps = [obj(item) for item in array(report['dependencies'])]
+        require(bool(deps), 'missing audited dependencies')
         skipped = [d for d in deps if 'skip_reason' in d]
         findings = [
             dict(package=d['name'], version=d['version'], advisory=v)
             for d in deps
             if 'skip_reason' not in d
-            for v in d['vulns']
+            for v in array(d['vulns'])
         ]
         require(
             rc == 0 or bool(findings) or bool(skipped), 'nonzero without advisories'
@@ -282,20 +326,34 @@ def parse(kind, stdout, stderr, rc):
             'findings': len(re.findall(r'^Diff in ', stdout, re.M)),
             'metric': 'diff hunks (not lint identities)',
         }
+    if kind == 'shell-syntax':
+        # bash -n returns 2 for syntax errors AND some invocation failures.
+        # Require Bash's file/line diagnostic; permission/missing-file failures
+        # are execution errors, not source findings.
+        require(rc in (0, 2), 'unexpected Bash exit')
+        diagnostics = re.findall(
+            r'^.+: line \d+: (?:syntax error[^\n]*|unexpected EOF[^\n]*)$',
+            stderr,
+            re.M,
+        )
+        require(rc == 0 or bool(diagnostics), 'Bash setup/read failure')
+        require(rc != 0 or not diagnostics, 'Bash exit/diagnostic mismatch')
+        return {'findings': len(diagnostics), 'diagnostics': diagnostics}
     require(rc == 0, 'command failed; inspect raw evidence')
     return {'findings': 0}
 
 
-def interpret(result, out, kind):
-    if result['execution'] != 'COMPLETED':
-        result['assessment'] = result['execution']
+def interpret(result: Result, out: Path, kind: str) -> Result:
+    execution = result.get('execution', 'MISSING_OR_SETUP_ERROR')
+    if execution != 'COMPLETED':
+        result['assessment'] = execution
         return result
     try:
         parsed = parse(
             kind,
             (out / (result['name'] + '.stdout')).read_text(),
             (out / (result['name'] + '.stderr')).read_text(),
-            result['exit_code'],
+            result.get('exit_code'),
         )
         result['metrics'] = parsed
         result['assessment'] = (
@@ -314,9 +372,9 @@ def interpret(result, out, kind):
     return result
 
 
-def coverage(path, sources):
+def coverage(path: Path, sources: Sequence[str]) -> Coverage:
     tree = ET.parse(path)
-    files = {}
+    files: dict[str, dict[int, int]] = {}
     for cls in tree.findall('.//class'):
         name = cls.attrib['filename']
         p = Path(name)
@@ -332,8 +390,8 @@ def coverage(path, sources):
             require(number > 0 and hits >= 0, 'invalid coverage line')
             lines[number] = max(hits, lines.get(number, 0))
     require(bool(files), 'empty coverage')
-    result = {
-        p: dict(
+    result: dict[str, FileCoverage] = {
+        p: FileCoverage(
             executable_lines=len(ls),
             hit_lines=sum(v > 0 for v in ls.values()),
             percent=round(100 * sum(v > 0 for v in ls.values()) / len(ls), 2)
@@ -342,36 +400,38 @@ def coverage(path, sources):
         )
         for p, ls in files.items()
     }
-    return dict(
+    return Coverage(
         per_file=result,
         missing_owned_files=sorted(set(sources) - set(files)),
         zero_hit_files=[p for p, x in result.items() if x['hit_lines'] == 0],
     )
 
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--out', type=Path, default=ROOT / '.quality/reports')
-    ap.add_argument('--timeout', type=float, default=1800)
-    args = ap.parse_args()
+    _ = ap.add_argument('--out', type=Path, default=ROOT / '.quality/reports')
+    _ = ap.add_argument('--timeout', type=float, default=1800)
+    args = Options()
+    _ = ap.parse_args(namespace=args)
     require(args.timeout > 0, 'timeout must be positive')
     out = args.out.resolve() / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
     out.mkdir(parents=True)
     files = capture(['git', 'ls-files', '-z']).split('\0')
     files = [p for p in files if p]
+    predicates: dict[str, Callable[[str], bool]] = {
+        'rust': lambda p: p.endswith('.rs'),
+        'shell': lambda p: p.endswith('.sh'),
+        'python': lambda p: p.endswith('.py'),
+        'docker': lambda p: Path(p).name == 'Dockerfile',
+        'workflow': lambda p: p.startswith('.github/workflows/'),
+        'patch': lambda p: p.endswith('.patch'),
+    }
     groups = {
         kind: [p for p in files if predicate(p)]
-        for kind, predicate in {
-            'rust': lambda p: p.endswith('.rs'),
-            'shell': lambda p: p.endswith('.sh'),
-            'python': lambda p: p.endswith('.py'),
-            'docker': lambda p: Path(p).name == 'Dockerfile',
-            'workflow': lambda p: p.startswith('.github/workflows/'),
-            'patch': lambda p: p.endswith('.patch'),
-        }.items()
+        for kind, predicate in predicates.items()
     }
     provenance_files = files
-    manifest = dict(
+    manifest: dict[str, object] = dict(
         source_sha=capture(['git', 'rev-parse', 'HEAD']),
         started_at=now(),
         dirty_state=capture(
@@ -409,27 +469,28 @@ def main():
     write(
         out / 'native-suppressions.json',
         [
-            dict(file=p, line=i, text=line.strip())
+            site
             for p in groups['rust'] + groups['shell'] + groups['python']
-            for i, line in enumerate((ROOT / p).read_text().splitlines(), 1)
-            if re.search(
-                r'#\[allow|shellcheck disable|#.*noqa|#.*nosemgrep|#.*type: ignore',
-                line,
-            )
+            for site in inventory(p, (ROOT / p).read_text())
         ],
     )
     bootstrap = ROOT / '.quality/tools/provenance'
     if bootstrap.exists():
-        shutil.copytree(
+        _ = shutil.copytree(
             bootstrap,
             out / 'bootstrap',
             ignore=shutil.ignore_patterns(
                 '*.tar.gz', 'hadolint-Linux-x86_64', 'hadolint-linux-x86_64'
             ),
         )
-    results = []
+    results: list[Result] = []
 
-    def check(name, argv, kind='command', env=None):
+    def check(
+        name: str,
+        argv: Sequence[str],
+        kind: str = 'command',
+        env: Mapping[str, str] | None = None,
+    ) -> Result:
         print(name, flush=True)
         r = interpret(run(argv, ROOT, out, name, args.timeout, env), out, kind)
         results.append(r)
@@ -492,25 +553,29 @@ def main():
         'rust-tests',
     )
     # Per-target identities disambiguate same-named tests in different binaries.
-    if meta.get('metrics'):
-        data = meta['metrics']['data']
-        owned = [p for p in data['packages'] if p['id'] in data['workspace_members']]
+    metadata_metrics = meta.get('metrics')
+    if metadata_metrics:
+        data = obj(metadata_metrics['data'])
+        members = array(data['workspace_members'])
+        owned = [obj(p) for p in array(data['packages']) if obj(p)['id'] in members]
         write(out / 'target-matrix.json', owned)
         for package in owned:
-            for target in package['targets']:
+            for raw_target in array(package['targets']):
+                target = obj(raw_target)
                 if not target['test']:
                     continue
-                kind = target['kind'][0]
+                kind = string(array(target['kind'])[0])
+                target_name = string(target['name'])
                 selector = (
                     ['--lib']
                     if kind == 'lib'
-                    else ['--bin', target['name']]
+                    else ['--bin', target_name]
                     if kind == 'bin'
                     else []
                 )
                 if selector:
                     check(
-                        'tests-' + target['name'],
+                        'tests-' + target_name,
                         cargo
                         + ['test', '--locked', *selector, '--', '--format', 'pretty'],
                         'rust-tests',
@@ -531,7 +596,7 @@ def main():
         )
     else:
         results.append(
-            dict(name='auth-http-tests', assessment='BLOCKED_BY_BUILD', metrics=None)
+            Result(name='auth-http-tests', assessment='BLOCKED_BY_BUILD', metrics=None)
         )
     cov = check(
         'rust-coverage',
@@ -546,33 +611,28 @@ def main():
         ],
     )
     try:
-        require(cov['exit_code'] == 0, 'coverage execution failed')
+        require(cov.get('exit_code') == 0, 'coverage execution failed')
         cov['coverage'] = coverage(out / 'coverage.xml', groups['rust'])
         if cov['coverage']['missing_owned_files']:
             cov['assessment'] = 'PARTIAL_COVERAGE'
     except (OSError, ValueError, KeyError, ET.ParseError) as exc:
         cov.update(assessment='MISSING_OR_INVALID_COVERAGE', coverage_error=str(exc))
     for i, p in enumerate(groups['shell']):
-        check(f'shell-syntax-{i:02}', ['bash', '-n', p])
+        check(f'shell-syntax-{i:02}', ['bash', '-n', p], 'shell-syntax')
     check(
         'shellcheck', ['shellcheck', '--format=json1', *groups['shell']], 'shellcheck'
     )
     # A second scan removes only native ShellCheck disable comments in temporary
     # copies; source files and line numbers remain unchanged in the checkout.
-    shell_inputs = []
-    mapping = {}
+    shell_inputs: list[str] = []
+    mapping: dict[str, str] = {}
     for p in groups['shell']:
         content = (ROOT / p).read_text()
-        if re.search(r'#\s*shellcheck\s+disable=', content):
+        unsuppressed = unsuppress_shell(content)
+        if unsuppressed != content:
             dest = out / 'unsuppressed-shell' / p
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(
-                re.sub(
-                    r'#\s*shellcheck\s+disable=[^\n]*',
-                    '# measurement: native disable removed',
-                    content,
-                )
-            )
+            _ = dest.write_text(unsuppressed)
             shell_inputs.append(str(dest))
             mapping[str(dest)] = p
         else:
@@ -619,7 +679,7 @@ def main():
         'actionlint',
     )
     env = os.environ.copy()
-    env.pop('SEMGREP_APP_TOKEN', None)
+    _ = env.pop('SEMGREP_APP_TOKEN', None)
     env.update(SEMGREP_SEND_METRICS='off')
     scan = check(
         'semgrep',
@@ -640,11 +700,13 @@ def main():
         'semgrep',
         env,
     )
-    if scan.get('metrics'):
+    scan_metrics = scan.get('metrics')
+    if scan_metrics:
         missing = sorted(
-            set(groups['rust'] + groups['python']) - set(scan['metrics']['scanned'])
+            set(groups['rust'] + groups['python'])
+            - {string(p) for p in array(scan_metrics['scanned'])}
         )
-        scan['metrics']['missing_targets'] = missing
+        scan_metrics['missing_targets'] = missing
         if missing:
             scan['assessment'] = 'PARTIAL_SCAN'
     check('cargo-audit', ['cargo', 'audit', '--json'], 'audit')
@@ -655,7 +717,7 @@ def main():
             (cargo_home / 'registry/src').glob(f'*/{tool}-{version}/Cargo.lock')
         )
         if len(locks) == 1:
-            shutil.copy(locks[0], out / (tool + '-Cargo.lock'))
+            _ = shutil.copy(locks[0], out / (tool + '-Cargo.lock'))
             check(
                 'audit-tool-' + tool,
                 ['cargo', 'audit', '--json', '--file', str(locks[0])],
@@ -663,7 +725,7 @@ def main():
             )
         else:
             results.append(
-                dict(
+                Result(
                     name='audit-tool-' + tool,
                     assessment='MISSING_TOOL_LOCK',
                     metrics=None,
@@ -687,7 +749,7 @@ def main():
             )
         else:
             results.append(
-                dict(
+                Result(
                     name='audit-tools-' + venv,
                     assessment='MISSING_TOOL_ENV',
                     metrics=None,
@@ -721,10 +783,12 @@ def main():
     ]
     for r in results:
         summary.append(
-            f"| {r['name']} | {r['assessment']} | {r.get('exit_code', 'N/A')} | {(r.get('metrics') or {}).get('findings', 'unknown/N/A')} |"
+            f"| {r['name']} | {r.get('assessment', 'UNASSESSED')} | {r.get('exit_code', 'N/A')} | {(r.get('metrics') or {}).get('findings', 'unknown/N/A')} |"
         )
-    summary += ['', '## Known scope gaps', ''] + ['- ' + g for g in manifest['gaps']]
-    (out / 'summary.md').write_text('\n'.join(summary) + '\n')
+    summary += ['', '## Known scope gaps', ''] + [
+        '- ' + string(g) for g in array(manifest['gaps'])
+    ]
+    _ = (out / 'summary.md').write_text('\n'.join(summary) + '\n')
     hashes = {
         str(p.relative_to(out)): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in out.rglob('*')

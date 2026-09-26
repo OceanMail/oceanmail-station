@@ -1,0 +1,52 @@
+# CI template instantiation contract
+
+The YAML templates intentionally depend on repository-specific `.quality/ratchet.py`, reviewed configs and lockfiles produced in Phase 3. The supplied helpers implement comparison scope, baseline-ledger protection and missing-coverage checks; they do not implement every language's diagnostic normalizer. Codex must implement/test the adapters below for the owning repo. Do not copy templates and claim completion before these prerequisites exist.
+
+## Required files
+
+Copy the three supplied helpers into `.quality/`. Add `.quality/requirements.lock` with exact/hash-locked Python tooling and `.quality/semgrep.yml` with reviewed pinned rules/provenance. Seed `.quality/suppressions.json` before the CI PR. Include all tool/diagnostic/test/advisory exceptions in that ledger, including native inline suppressions. A diagnostic entry requires tool, rule, file, fingerprint, tracking issue, and reason. Store owner/expiry/advisory details in a reviewed companion `.quality/advisory-exceptions.json`; keep the six-field ledger schema stable and cross-check both. A source-context fingerprint must not be only a line number or total count. Multiple identical findings require multiplicity accounting.
+
+For Node install exact ESLint/Prettier/TypeScript/c8 versions in `desktop/package.json` and commit the npm lock. For documentation-only repos keep tooling in `.quality/package.json` with a lock. For Python create `requirements-dev.lock`, coverage source configuration and a documented basedpyright baseline. For Rust keep Cargo.lock; add an exact rust-toolchain.toml consistent with validated CI and a Clippy baseline normalizer. Tool/lock introduction is configuration work; upgrades that require application changes get their own PRs.
+
+The Rust and Desktop workflows need supplemental shell checks, and Station needs Python static checks. Include all owned source roots, tooling and test helpers in lint/type scope. Coverage exclusions for harnesses/vendor/generated files require documented rationale; testable owned code must not disappear by convention. These YAML files do not override existing no-radio integration workflows.
+
+## `.quality/ratchet.py` interface to implement in Phase 3
+
+All subcommands exit 0 only when their promised checks completed and found no new unaccepted violations. Exit 1 for new violations; exit 2 for setup/parser/partial-scan errors. Preserve raw results and tool versions under `--out`. No catch-all successful exception handlers.
+
+| Command | Contract |
+|---|---|
+| `verify-config --base SHA` | Compare actual exceptions to the ledger, reject added/broadened directives/config exclusions, rules turned off, source-root narrowing, new skip/xfail identities, coverage/test scope shrinkage and changed locks without reviewed policy. Verify fingerprints against real diagnostic/source context; detect omissions and stale entries. Compare trusted state from SHA, never merely the PR's self-declared baseline. |
+| `clippy --base SHA --out reports` | Run locked Clippy over all owned targets, parse JSONL compiler-message diagnostics, subtract exact accepted identities/multiplicity. Compilation failures always fail. No blanket `allow(warnings)` or rule-count-only budgets. |
+| `eslint --base SHA --out reports` | Run the existing lint plus versioned ESLint rules. Normalize file/rule/context, preserve fatal parser/config errors. If using native suppressions, validate that they match the ledger and cannot hide new errors in a previously suppressed file. |
+| `tsc --base SHA --out reports` | Run noEmit/checkJs or TS config over all current and newly added owned sources. Fingerprint legacy diagnostics, retain new-file strictness. Missing declarations are fixed as tooling/configuration where possible; do not baseline a broken compiler installation. |
+| `audit --base SHA --out reports` | Run cargo-audit, npm audit or pip-audit against the correct locked dependency graph; parse advisory identity + package/version/dependency path, compare explicit exceptions and enforce expiry. Audit scanner tooling too in docs-only repos. Newly published advisories fail/require triage even if no dependency changed. Feed/network failure is a failed check, not zero vulnerabilities. |
+| `normalize-coverage --input FILE --prefix desktop --output FILE` | Map package-relative Cobertura filenames to repository-relative paths exactly once. Validate each path against tracked source; reject escaping, duplicate/conflicting or unmappable paths. Do not drop classes. |
+| `markdown --base SHA --out reports` | Markdown lint diagnostics with the same identity ratchet; documented style exceptions, no catch-all ignored documents. |
+| `local-links --out reports` | Verify relative file links and anchors; skip external URLs with an explicit external-link policy. Cross-private-repository links are handled as defined references, not silently deleted. |
+| `source-scope --expect documentation-only --out reports` | Fail if newly added executable/source/dependency/workflow assets lack their required validated stack adapter. Permit the known `.quality/` verification implementation, which must have its own tests. Do not allow a docs check to bless newly introduced application code. |
+
+The interface is deliberately narrow; implement only adapters needed by the repo, with executable injection tests. New adapter implementation is tooling, not application logic. Until it exists, the corresponding template cannot pass.
+
+## Correct baseline semantics
+
+1. Seed once from a stable, complete measurement with identical tools/configuration at a recorded SHA. Preserve the full unsuppressed report.
+2. Ruff may use `ruff check . --add-noqa`; retain rule-specific codes. Enable unused-noqa checking (`RUF100`) after cleanup. New/no-longer-needed inline suppressions must not slip through the ledger guard. A changed suppressed statement needs reevaluation, not inherited immunity.
+3. Rust uses a diagnostic baseline or narrowly scoped rule allows tied to exact source contexts; Rust compiler type errors are never a legacy pass condition. JavaScript uses a diagnostic baseline or tightly tracked ESLint suppression identities. A file-wide count can exchange old violations for new ones and is insufficient alone.
+4. basedpyright baseline generation runs only in the seed task. Pinned versions differ: the template uses a normal check followed by `git diff --exit-code` to detect automatic baseline shrinkage. A newer validated version may instead use `--baselinemode=lock`. Never pass `--writebaseline` in CI. Per-module leniency by itself is not a new-violation ratchet inside legacy modules; add diagnostic-delta enforcement there.
+5. Previously failing tests are narrow expected failures with issues. Python uses strict xfail and checks the expected exception/signature where feasible; an unexpected pass fails and prompts debt removal. Missing services, collection errors and broken dependencies are not known application failures to hide. Skip requires a technical reason, expiry and owner triage. Track original test identity/assertions.
+6. Semgrep PR comparison uses the immutable merge base, with committed rules and no suppressed scanner errors. Main/push compares against the previous commit range, not current origin/main. Retain a full-scan legacy register and periodic full scan to prevent debt disappearing merely because it was not in a PR diff. Validate no-token `SEMGREP_RULES` mode and severity blocking behavior using the pinned version. For unsupported language analysis, report the gap and add the appropriate stack-native tool.
+7. Dependency findings need their own explicit legacy exceptions. Otherwise old vulnerable packages make initial main red. Exceptions identify advisory/package/version/path/owner/expiry; broad package ignores are forbidden. Vulnerabilities are not automatically confirmed exploitable application bugs.
+8. Baseline reductions and source-context renames must preserve provenance and cannot offset unrelated additions. Tests must prove this. Only deliberate owner-reviewed rebaseline/tool-upgrade PRs can change the seed policy.
+
+## CI event and coverage semantics
+
+`quality` is a stable single required job name, written on its own line. It triggers on every push/PR with no path filter. Steps fail normally; evidence upload uses `always()` but cannot hide prior failure. The job runs on GitHub-hosted Linux, uses read-only permissions and disables checkout credential persistence. Keep fork PRs away from existing persistent self-hosted runners; no pull_request_target execution of PR code. Preserve private lab policy for existing self-hosted suites.
+
+The base helper uses the PR base SHA (merge base with the tested checkout) or push event's `before` SHA. A main push compared to current origin/main would have an empty diff and falsely appear covered. The helper rejects empty scope and uses a real parent for a first/manual main run. Initial root commits without an ancestor need an explicit full-source bootstrap policy, not a silent pass. If merge queues are enabled later, add/test `merge_group` before requiring these checks through a queue.
+
+Keep the synthetic PR merge validation as well as branch-head runs; record both SHAs and event types. Use fresh main state immediately before merge, then verify the merge commit's push run.
+
+Coverage must include never-imported/unexecuted source (`c8 --all`, explicit pytest source roots, llvm instrumentation) and preserve zero-hit lines. `coverage_guard.py` rejects modified files missing from XML, then diff-cover enforces 80% of changed executable lines. The guard is not an executable-line parser: test that adapters do not emit a fake empty class to hide executable lines. Test unchanged uncovered legacy files, a newly unimported file, a new function, and a modified function separately. Tests/config/docs-only diffs may have no executable lines; report that as N/A, not 100% product coverage.
+
+Runtime pins in templates are initial candidates: Rust follows current Station CI; Node retains the existing major; Python 3.12 is tooling. Validate on current code before adopting a patch version. Action SHAs were resolved via GitHub and captured in evidence/action-pins.json. ubuntu-24.04 is an OS label, not an immutable image digest; use a digest-pinned build container if bit-for-bit OS reproducibility is required. Cache dependency downloads, not raw test outcomes.
