@@ -1,48 +1,26 @@
-# OceanMail Station — Publication Readiness
+# OceanMail Station — Source and release readiness
 
-Status: **PRIVATE / publication review required**
+Status: **PUBLIC SOURCE — updated 2026-09-26**.
 
-This document records Station-specific findings that must not disappear when the repository-publication audit thread is retired. Organization-wide publication gates are authoritative in `OceanMail/oceanmail-project/docs/specifications/publication-readiness.md`.
+Station is published from a sanitized source snapshot with fresh history. The
+installed licenses are AGPL-3.0-only for OceanMail-owned code and CC-BY-SA-4.0 for
+documentation; see [LICENSING.md](../LICENSING.md) and
+[PUBLICATION.md](../PUBLICATION.md). These are completed source-publication
+choices, not evidence of production or RF readiness.
 
-This is **not** a decision that Station will or will not become public.
+## Continuing source review
 
-## Current blockers / review items
+Keep personal contacts, field locations, workstation details, live credentials
+and operational inventories out of source, logs and attachments. The generic
+[test plan](testing-hardware-acquisition-plan.md) preserves staged virtual,
+conducted-RF, local OTA and maritime validation, safe bench loading/attenuation,
+failure/recovery tests and reproducible link/evidence metrics. Physical-radio
+work still requires explicit authorization.
 
-### OceanMail license not yet selected
-
-There is currently no top-level `LICENSE` for `OceanMail/oceanmail-station`. Public GitHub visibility must not be treated as an implicit reuse license.
-
-Select and document the OceanMail-owned code license before an approved public source release.
-
-### Field-test plan contains private/unnecessary operational detail
-
-`docs/testing-hardware-acquisition-plan.md` currently contains concrete development and field-test context including:
-
-- local home/work/boat path geometry;
-- generic maritime test geography;
-- personal-contact categories for future remote/professional-vessel testing;
-- onboard/site capabilities and available local development resources.
-
-Those details were useful for private planning but are not required to explain the public Station architecture. Before making the existing repository/history public, either:
-
-1. sanitize/generalize the document while preserving reusable test requirements;
-2. relocate the private field-test/site/contact details to an appropriately private project/operations record; or
-3. explicitly approve the specific details for publication after privacy/operational review.
-
-Do not silently lose the generic engineering requirements: staged virtual -> conducted-RF -> local OTA -> maritime/hybrid -> regional/professional validation, safe RF bench loading/attenuation, failure/recovery testing, and reproducible link/evidence metrics remain useful Station test design.
-
-### Existing history needs its own audit
-
-Do not assume cleaning current `main` is enough. Historical Station commits, PRs/issues, old status/handoff documents, and acceptance evidence have contained workstation-specific names/paths, exact laboratory IDs, detailed local test context, and copied diagnostics.
-
-Before exposing the existing history:
-
-- run a full-history secret scan;
-- review historical blobs/refs and repository-adjacent GitHub discussion/evidence surfaces;
-- review commit metadata and attachments for unnecessary personal information;
-- decide whether the existing history is suitable or whether a reviewed/sanitized public history is preferable.
-
-Accepted engineering evidence should be preserved where safe; the purpose is not to erase technical provenance but to avoid publishing private operational/personal details merely because they are historical.
+Review provenance, secrets, metadata and release contents when adding new
+material. Current-tree checks alone do not assess every published Git object or
+GitHub surface. Use the organization
+[release checklist](https://github.com/OceanMail/oceanmail-project/blob/main/docs/specifications/publication-readiness.md).
 
 ## Upstream/license provenance that must be preserved
 
@@ -67,23 +45,10 @@ Preserve current security truth:
 - production storage encryption/per-user key separation remain independent release gates;
 - development/test identities and fixtures must remain clearly non-production.
 
-## Public-release hygiene still required
+## Contributor access and checks
 
-Before accepting outside users/contributors, coordinate with the project publication workstream on:
-
-- `LICENSE`;
-- `SECURITY.md`;
-- `CONTRIBUTING.md`;
-- third-party attribution/notices;
-- release-status language for experimental 0.2 code;
-- CI/fork safety, especially any workflow using self-hosted runners.
-
-## Publication options
-
-The final project decision may choose any of these after review:
-
-- make the existing Station repository/history public after successful audit/sanitization;
-- create a sanitized public history/repository while retaining private development history;
-- keep Station private for a defined period or permanently.
-
-Record the final disposition in the organization project spine rather than treating this component note as the decision authority.
+Use [CONTRIBUTING.md](../CONTRIBUTING.md), [SECURITY.md](../SECURITY.md), and
+[public CI](PUBLIC_CI.md). Protected main requires auth, phase3a and phase4i.
+GitHub private vulnerability reporting is enabled; non-maintainer end-to-end
+submission and external-fork acceptance remain unverified. Passing no-radio
+checks does not establish real RF, production storage security or live product acceptance.
