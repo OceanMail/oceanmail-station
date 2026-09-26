@@ -35,11 +35,35 @@ that directory; no missing-import diagnostic is suppressed.
 Historical private evidence bundles and old acceptance counts are not imported.
 Fresh public-head evidence belongs in the PR and its linked Actions runs.
 
-Remaining limitations are explicit: Rust/shell directive and Rust test identity
-matching are conservative textual checks, not complete language parsers. Local
+Remaining limitations are explicit: Rust/shell directive matching over-approximates
+candidates. Rust test matching under-approximates: attribute-argument forms,
+alternative test macros and same-named tests in different modules are not fully
+tracked, and unknown forms are not rejected. Deleting those tests can evade the
+guard. Before S3b, establish authoritative per-target enumeration. Local
 scanner isolation is not a sandbox for malicious builds. The report-only
 measurement audit does not provide the ratchet adapter's stronger freshness
 validation. Complete CI enforcement and executable-line thresholds remain S4.
+
+## Independent review corrections
+
+Claude reviewed Station `8fa010c24beb2b639350991a21ed14406f1c633c` and Project
+`7e7dcb8bf808d87fcf1cc292ae4e478e63e6a37c`. That review does not cover later heads.
+
+- R1: describe the test-inventory under-approximation accurately; complete
+  authoritative enumeration remains a pre-S3b requirement.
+- R2: detect `SkipTest` and `importorskip`, including direct imports and aliases.
+- R3: describe proxy/wrapper hashes and version validation without claiming
+  complete underlying executable provenance.
+- R4: disable rustup auto-install in scanner environments, even if enabled by
+  the caller; missing compiler provisioning must fail.
+- O1/O2: preserve valid ShellCheck input after removing a disable-only directive
+  with a trailing reason; scope the HERMES sibling import path to its directory.
+- O4: record fresh-fetch completion and commit date without claiming an enforced
+  90-day database-age limit.
+
+Other optional improvements and future S3b/S4 requirements from the review remain
+outside this correction. No production ledger or enforcement is added. A new
+exact-head delta review is required before owner acceptance.
 
 ## Reproduce
 

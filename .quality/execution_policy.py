@@ -26,13 +26,15 @@ def environment(out: Path) -> dict[str, str]:
     runtime = out.resolve() / 'runtime'
     for name in ('home', 'cargo', 'config', 'cache', 'tmp'):
         (runtime / name).mkdir(parents=True, exist_ok=False)
-    # PATH and rustup select installed tools, whose executable bytes are recorded.
+    # PATH and rustup select tools; the resolved launcher/proxy bytes are recorded.
+    # This does not hash every underlying compiler, driver or interpreter.
     # No compiler options, Python imports, user config or Cargo config are inherited.
     result = {
         'PATH': os.environ.get('PATH', '/usr/bin:/bin'),
         'HOME': str(runtime / 'home'),
         'CARGO_HOME': str(runtime / 'cargo'),
         'RUSTUP_HOME': os.environ.get('RUSTUP_HOME', str(Path.home() / '.rustup')),
+        'RUSTUP_AUTO_INSTALL': '0',
         'XDG_CONFIG_HOME': str(runtime / 'config'),
         'XDG_CACHE_HOME': str(runtime / 'cache'),
         'TMPDIR': str(runtime / 'tmp'),
@@ -79,8 +81,9 @@ def audit_completed(
     """Pinned audit JSON omits index failures: check its mandatory stderr too.
 
     The command runs in a fresh directory/home with no config and no quiet flag.
-    Default cargo-audit fetches the DB and index, rejects a >90-day-old database,
-    but only prints some index failures. Unknown stderr fails closed.
+    Default cargo-audit fetches the DB and index, but only prints some index
+    failures. Unknown stderr fails closed. The captured database commit date
+    is provenance only; this adapter does not enforce a maximum database age.
     """
     require(
         started.tzinfo is not None and finished.tzinfo is not None,

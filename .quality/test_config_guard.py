@@ -123,6 +123,23 @@ class Configuration(unittest.TestCase):
             with self.assertRaises(ReportError):
                 verify(GitState(root, base))
 
+    def test_exception_and_import_based_skips_are_rejected(self) -> None:
+        for source in (
+            'import unittest\ndef test_a(): raise unittest.SkipTest("missing")\n',
+            'from unittest import SkipTest\ndef test_a(): raise SkipTest("missing")\n',
+            'from unittest import SkipTest as omit\ndef test_a(): raise omit("missing")\n',
+            'import pytest\npytest.importorskip("missing")\n',
+            'from pytest import importorskip as omit\nomit("missing")\n',
+        ):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                base = fixture(root)
+                _ = (root / 'a.py').write_text(source)
+                _ = git(root, 'add', '.')
+                _ = git(root, 'commit', '-qm', 'skip injection')
+                with self.assertRaises(ReportError):
+                    verify(GitState(root, base))
+
     def test_python_strings_are_not_native_directives(self) -> None:
         self.assertEqual(candidates('a.py', 'x = "# noqa"\n'), [])
         self.assertTrue(

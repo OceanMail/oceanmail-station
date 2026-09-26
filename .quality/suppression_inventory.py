@@ -59,7 +59,9 @@ def unsuppress_shell(source: str) -> str:
     """
     def remove(match: re.Match[str]) -> str:
         result = re.sub(r'\bdisable=[^\s]+', '', match.group())
-        if re.fullmatch(r'#\s*shellcheck\s*', result):
+        # Only options before a trailing reason comment affect ShellCheck.
+        options = result.removeprefix('#').split('#', 1)[0]
+        if not re.search(r'\b[\w-]+=\S', options):
             return '# measurement: native disable removed'
         return result
 

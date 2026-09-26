@@ -63,7 +63,9 @@ from this report-only runner.
 | pip-audit | 2.9.0 | Both installed Python tool environments |
 
 `bootstrap.sh` uses Cargo `--locked`, pip install reports and freezes, upstream
-binary checksums and captured executable hashes. The Python tool environments now use complete
+binary checksums and bootstrap binary hashes. Adapter execution records resolved
+proxy/wrapper hashes and validated scanner versions; it does not attest every
+underlying compiler, driver, interpreter or package byte. The Python tool environments use
 transitive hash locks and pip `--require-hashes`. Python, OS,
 system tools, advisory feeds and binary download endpoints have independent
 provenance/availability; complete enforcement/reproducibility belongs to S3/S4.
@@ -78,6 +80,21 @@ updated, and the failed preflight evidence is retained. Semgrep 1.177.0 parses a
 reads the current advisory database. Hadolint 2.15.1 still reports DL1000 at
 `lab/phase4b/Dockerfile:21` after its heredoc; that file is a partial static
 scan, not clean Docker validation. No Dockerfile is rewritten to satisfy it.
+
+## Draft guard limitations
+
+Rust/shell directive matching over-approximates candidates and may reject harmless
+text. Rust test-identity matching under-approximates: attribute-argument forms
+(such as `#[tokio::test(flavor = "multi_thread")]`), alternative test macros and
+same-named tests in different modules are not fully tracked. Unknown forms are
+not rejected, so deleting them can evade this guard. Before S3b, establish an
+authoritative per-target test inventory; this guard is not complete test-deletion
+protection. Keeping a test name also does not prove its assertions are unchanged.
+
+The ratchet requires a fresh advisory DB fetch and checks completion/index output
+within its execution time window. It records the DB commit date but does not
+enforce a maximum commit age. Rust 1.98.1 must be installed explicitly: ratchet
+scans disable rustup auto-install and fail when the toolchain is missing.
 
 ## Source, target and test matrix
 

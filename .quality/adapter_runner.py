@@ -221,7 +221,7 @@ def scan(kind: str, state: GitState, scanner: Scanner) -> list[Finding]:
                 'finished_utc': finished.isoformat(),
                 'database_fetch': 'fresh invocation; no inherited audit config',
                 'index_check': 'enabled; failure stderr rejected',
-                'database_stale_policy': 'pinned RustSec default 90 days; no --stale',
+                'database_stale_policy': 'fresh fetch required; commit age recorded, not enforced',
             },
         )
         require(

@@ -74,6 +74,8 @@ def candidates(filename: str, source: str) -> list[Finding]:
                     'skipTest',
                     'xfail',
                     'expectedFailure',
+                    'SkipTest',
+                    'importorskip',
                 }:
                     directives.append(ast.dump(node, include_attributes=False))
     elif filename.endswith('.rs'):
@@ -106,6 +108,7 @@ def candidates(filename: str, source: str) -> list[Finding]:
 
 
 def tests(filename: str, source: str) -> set[str]:
+    """Recognize a subset of test forms; this is not a complete test inventory."""
     if filename.endswith('.py'):
         found: set[str] = set()
 

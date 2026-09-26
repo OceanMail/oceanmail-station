@@ -10,7 +10,15 @@
   "typeCheckingMode": "strict",
   "pythonVersion": "3.13",
   "pythonPlatform": "Linux",
-  "extraPaths": [
-    "../scripts/hermes-session-regression"
+  "executionEnvironments": [
+    {
+      "root": "../scripts/hermes-session-regression",
+      "extraPaths": [
+        "../scripts/hermes-session-regression"
+      ]
+    },
+    {
+      "root": ".."
+    }
   ]
 }

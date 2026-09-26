@@ -111,6 +111,19 @@ class MeasurementCorrections(unittest.TestCase):
             '# measurement: native disable removed\necho $x\n',
         )
 
+    def test_shell_disable_with_reason_leaves_no_empty_directive(self) -> None:
+        for reason in ('reason', 'reason with key=value'):
+            source = '# shellcheck disable=SC2086 # ' + reason + '\necho $x\n'
+            self.assertEqual(
+                unsuppress_shell(source),
+                '# measurement: native disable removed\necho $x\n',
+            )
+            with_option = source.replace('shellcheck ', 'shellcheck shell=bash ')
+            result = unsuppress_shell(with_option)
+            self.assertIn('shell=bash', result)
+            self.assertIn('# ' + reason, result)
+            self.assertNotIn('disable=', result)
+
     def test_other_language_matches_explicitly_unverified(self) -> None:
         sites = inventory('a.sh', '# shellcheck disable=SC1091\n')
         self.assertEqual(len(sites), 1)

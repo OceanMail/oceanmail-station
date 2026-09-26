@@ -34,6 +34,13 @@ class ExecutionPolicy(unittest.TestCase):
                 self.assertNotIn(key, result)
             self.assertTrue(Path(result['HOME']).is_dir())
 
+    def test_rustup_auto_install_is_disabled_even_if_caller_enables_it(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict('os.environ', {'RUSTUP_AUTO_INSTALL': '1'}),
+        ):
+            self.assertEqual(environment(Path(directory))['RUSTUP_AUTO_INSTALL'], '0')
+
     def test_audit_index_failure_and_partial_stages_rejected(self) -> None:
         now = datetime.now(timezone.utc)
         report = {'vulnerabilities': {'count': 0}, 'warnings': {}}
