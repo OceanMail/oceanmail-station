@@ -24,6 +24,7 @@ jobs:
           persist-credentials: false
       - name: Compare exact upstream revisions and the temporary patch
         run: |
+          python3 scripts/test-phase4i-hermes-boundary.py
           git clone https://github.com/Rhizomatica/hermes-net.git "$RUNNER_TEMP/hermes"
           python3 scripts/hermes-session-regression/compare_upstream.py \
             --source "$RUNNER_TEMP/hermes" --out "$RUNNER_TEMP/comparison"

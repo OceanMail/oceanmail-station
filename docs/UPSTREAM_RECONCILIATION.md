@@ -63,6 +63,14 @@ bridge and three TCP error probes while basic greeting/binary controls pass.
 The replacement corrects those probes. The PR's fresh public CI results determine
 acceptance; this document does not declare pending CI successful.
 
+The first combined run with current upstream delivered the original mail exactly
+but exposed an obsolete lifecycle-parser assumption: raw duplicate DISCONNECTED
+notifications were counted even when HERMES explicitly logged that it ignored
+them after cleanup. The permanent parser now cancels only a notification paired
+with that exact upstream acknowledgement. Missing cleanup, a genuine later
+disconnect, a new connection and live bridge processes still block readiness;
+thirteen parser/gate regressions preserve these gates. Failed runs remain in PR history.
+
 STATIC / UNIT is distinct from INTEGRATION. No LIVE / PRODUCT, physical RF,
 preemption, Broadcast or production-security qualification is claimed.
 
