@@ -1,7 +1,16 @@
 {
-  "include": ["../scripts", "."],
-  "exclude": ["tools", "reports"],
+  "include": [
+    "../scripts",
+    "."
+  ],
+  "exclude": [
+    "tools",
+    "reports"
+  ],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.13",
-  "pythonPlatform": "Linux"
+  "pythonPlatform": "Linux",
+  "extraPaths": [
+    "../scripts/hermes-session-regression"
+  ]
 }

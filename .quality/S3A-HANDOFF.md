@@ -29,6 +29,9 @@ and unscanned-script detection; SC1087 handling; Python transitive locks.
 The public-port review additionally found that multi-option ShellCheck disable
 comments escaped measurement inventory/unsuppression. A regression test now
 checks their inventory and removal while retaining other options and line numbers.
+The public measurement also exposed unresolved sibling `test_ipc` imports in
+the newer HERMES helper directory. The type-checker search path now includes
+that directory; no missing-import diagnostic is suppressed.
 Historical private evidence bundles and old acceptance counts are not imported.
 Fresh public-head evidence belongs in the PR and its linked Actions runs.
 
