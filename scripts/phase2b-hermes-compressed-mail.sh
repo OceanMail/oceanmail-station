@@ -11,7 +11,6 @@ PHASE2_IMAGE="${PHASE2_IMAGE:-oceanmail-mail-lab:phase2}"
 PHASE2B_IMAGE="${PHASE2B_IMAGE:-oceanmail-mail-lab:phase2b}"
 BASELINE_UUCP_BYTES="${BASELINE_UUCP_BYTES:-720}"
 HERMES_NET_SHA="0fee4a53f54074ad6237b9fa1083a272cac89f60"
-LIBCMIME_SHA="dd21eb096d162656e30243f60fc4bc35ad39ae6e"
 MERCURY_TAG=""
 MERCURY_SHA="638193b9a9cc5ab15f272805af116e94b2fdf4c6"
 MERCURY_DIR="${UPSTREAM_BASE:-$HOME/Projects/upstream}/mercury"
@@ -67,7 +66,6 @@ printf 'Message-ID: %s\n' "$MESSAGE_ID"
 printf 'Envelope: alice@stationa.test -> bob@stationb.test\n'
 printf 'Accepted Phase 2A UUCP baseline: %s bytes\n' "$BASELINE_UUCP_BYTES"
 printf 'HERMES net: %s\n' "$HERMES_NET_SHA"
-printf 'libcmime: %s\n' "$LIBCMIME_SHA"
 printf 'Mercury: %s @ %s\n' "$MERCURY_TAG" "$MERCURY_SHA"
 printf 'Evidence directory: %s\n' "$RUN_DIR"
 
@@ -84,7 +82,6 @@ docker build -f "$REPO_ROOT/lab/phase2/Dockerfile" -t "$PHASE2_IMAGE" "$REPO_ROO
     }
 docker build \
     --build-arg "HERMES_NET_SHA=$HERMES_NET_SHA" \
-    --build-arg "LIBCMIME_SHA=$LIBCMIME_SHA" \
     -f "$REPO_ROOT/lab/phase2b/Dockerfile" -t "$PHASE2B_IMAGE" "$REPO_ROOT" \
     >"$RUN_DIR/phase2b-image-build.log" 2>&1 || {
         printf 'ERROR: Phase 2B uuxcomp/crmail image build failed\n' >&2

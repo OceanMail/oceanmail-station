@@ -58,8 +58,8 @@ disabled, and sanitizer success alone does not establish cross-process ordering.
 
 ## Rebase against upstream
 
-Seven files apply with three-way context; VARA retirement overlaps upstream's new
-late-disconnect changes and requires semantic reconciliation. The combined patch
+The replacement modifies eight upstream files. VARA retirement overlaps upstream's
+new late-disconnect changes and requires semantic reconciliation. The combined patch
 retains duplicate/late-notification handling under the RX mutex, arms pending
 disconnect before writing the command, and retains upstream's 90-second fallback
 inside the retirement wait. It waits for the bridge claim and drains/resets rings

@@ -10,7 +10,6 @@ PHASE2_IMAGE="${PHASE2_IMAGE:-oceanmail-mail-lab:phase2}"
 PHASE2B_IMAGE="${PHASE2B_IMAGE:-oceanmail-mail-lab:phase2b}"
 PHASE3_IMAGE="${PHASE3_IMAGE:-oceanmail-mail-client-lab:phase3}"
 HERMES_NET_SHA="0fee4a53f54074ad6237b9fa1083a272cac89f60"
-LIBCMIME_SHA="dd21eb096d162656e30243f60fc4bc35ad39ae6e"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_BASE="${LOG_BASE:-$HOME/oceanmail-logs}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -67,7 +66,6 @@ fi
 
 if ! docker build \
     --build-arg "HERMES_NET_SHA=$HERMES_NET_SHA" \
-    --build-arg "LIBCMIME_SHA=$LIBCMIME_SHA" \
     -f "$REPO_ROOT/lab/phase2b/Dockerfile" \
     -t "$PHASE2B_IMAGE" "$REPO_ROOT" >"$RUN_DIR/phase2b-image-build.log" 2>&1; then
     printf 'ERROR: Phase 2B image build failed\n' >&2
