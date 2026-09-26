@@ -124,6 +124,11 @@ class MeasurementCorrections(unittest.TestCase):
             self.assertIn('# ' + reason, result)
             self.assertNotIn('disable=', result)
 
+    def test_shell_directive_without_disable_is_not_rewritten(self) -> None:
+        for directive in ('# shellcheck', '# shellcheck invalid', '# shellcheck shell='):
+            source = directive + '\necho $x\n'
+            self.assertEqual(unsuppress_shell(source), source)
+
     def test_other_language_matches_explicitly_unverified(self) -> None:
         sites = inventory('a.sh', '# shellcheck disable=SC1091\n')
         self.assertEqual(len(sites), 1)

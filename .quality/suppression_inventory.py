@@ -59,6 +59,8 @@ def unsuppress_shell(source: str) -> str:
     """
     def remove(match: re.Match[str]) -> str:
         result = re.sub(r'\bdisable=[^\s]+', '', match.group())
+        if result == match.group():
+            return result
         # Only options before a trailing reason comment affect ShellCheck.
         options = result.removeprefix('#').split('#', 1)[0]
         if not re.search(r'\b[\w-]+=\S', options):
