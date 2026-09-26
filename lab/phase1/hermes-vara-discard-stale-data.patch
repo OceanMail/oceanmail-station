@@ -1,65 +1,870 @@
+diff --git a/uucpd/call_uucico.c b/uucpd/call_uucico.c
+index 1deeb38..3fa1d43 100644
+--- a/uucpd/call_uucico.c
++++ b/uucpd/call_uucico.c
+@@ -50,15 +50,20 @@
+ #include <grp.h>
+ 
+ #include "call_uucico.h"
++#include "shm.h"
+ 
+ bool call_uucico(rhizo_conn *connector){
+ 
++    if (!bridge_claim(connector->bridge_semid))
++        return false;
++    if (connector->clean_buffers || connector->shutdown) {
++        bridge_release(connector->bridge_semid);
++        return false;
++    }
++
+     fprintf(stderr, "call_uucico: Sending signal to start uucico!\n");
+ 
+-    if (connector->uucico_active == true)
+-        fprintf(stderr, "Warning: trying to activate already active uucico!\n");
+-    else
+-        connector->uucico_active = true;
++    connector->uucico_active = true;
+ 
+     return true;
+ }
+@@ -66,7 +71,7 @@ bool call_uucico(rhizo_conn *connector){
+ void *uucico_thread(void *conn){
+     rhizo_conn *connector = conn;
+     pid_t pid;
+-    int st;
++    int st = 0;
+ 
+     // set some file descriptors as in in.uucpd...
+     // use 2 pipe() to create the fds for I/O
+@@ -77,8 +82,10 @@ void *uucico_thread(void *conn){
+ 
+     while (connector->shutdown == false)
+     {
+-        while (connector->uucico_active == false)
++        while (!connector->uucico_active && !connector->shutdown)
+             usleep(100000); // 0.1s
++        if (connector->shutdown && !connector->uucico_active)
++            break;
+ 
+         fprintf(stderr, "uucico_thread: session started!\n");
+ 
+@@ -93,12 +100,21 @@ void *uucico_thread(void *conn){
+         pthread_t tid2;
+         pthread_create(&tid2, NULL, uucico_write_thread, (void *) connector);
+ 
++        /* A retiring pre-exec child must not run uucpd's inherited SIGTERM
++         * handler and change the parent's shared connector state. */
++        sigset_t blocked, saved;
++        sigemptyset(&blocked);
++        sigaddset(&blocked, SIGTERM);
++        bool masked = pthread_sigmask(SIG_BLOCK, &blocked, &saved) == 0;
++        pid = masked ? fork() : -1;
+         // parent
+-        if ((pid = fork()) != 0)
++        if (pid != 0)
+         {
++            if (masked)
++                pthread_sigmask(SIG_SETMASK, &saved, NULL);
+             if (pid < 0) {
+                 fprintf(stderr, "fork() error.\n");
+-                return NULL;
++                connector->clean_buffers = true;
+             }
+ 
+             close(connector->pipefd1[0]);
+@@ -106,8 +122,17 @@ void *uucico_thread(void *conn){
+ 
+             // pthread_create the two threads which does the job of reading / writing from/to buffers and fds...
+ 
+-            while(wait(&st) != pid);
+-            if ( WIFEXITED(st) ){
++            /* Also catches retirement before the child has exec'ed uucico. */
++            pid_t done = -1;
++            while (pid > 0) {
++                done = waitpid(pid, &st, WNOHANG);
++                if (done == pid || (done < 0 && errno != EINTR))
++                    break;
++                if (connector->clean_buffers || connector->shutdown)
++                    kill(pid, SIGTERM);
++                usleep(100000);
++            }
++            if (pid > 0 && done == pid && WIFEXITED(st)){
+                 fprintf(stderr, "uucico child exec exited with status = %d\n", WEXITSTATUS(st));
+                 // uucico ended!
+                 // we should disconnect here!
+@@ -128,12 +153,15 @@ void *uucico_thread(void *conn){
+ 
+             connector->send_break = true;
+             connector->uucico_active = false;
++            bridge_release(connector->bridge_semid);
+ 
+             fprintf(stderr, "uucico_thread: session ended!\n");
+             continue;
+         }
+ 
+         // this is the child (uucico)
++        signal(SIGTERM, SIG_DFL);
++        pthread_sigmask(SIG_SETMASK, &saved, NULL);
+         close(0);
+         close(1);
+         close(2);
+@@ -206,7 +234,7 @@ void *uucico_read_thread(void *conn)
+     int bytes_pipe = 0;
+     uint8_t buffer[BUFFER_SIZE];
+ 
+-    while(running)
++    while(running && !connector->clean_buffers && !connector->shutdown)
+     {
+         ioctl(connector->pipefd2[0], FIONREAD, &bytes_pipe);
+ //        fprintf(stderr, "trying to read from uucico %d bytes!\n", bytes_pipe);
+@@ -217,18 +245,25 @@ void *uucico_read_thread(void *conn)
+             bytes_pipe = 1; // so we block in read() in case of no data to read
+ 
+         // workaround to make protocol 'y' work better
+-        while (circular_buf_size(connector->in_buffer) > BUFFER_SIZE/2)
++        while (!connector->clean_buffers && !connector->shutdown &&
++               circular_buf_size(connector->in_buffer) > BUFFER_SIZE/2)
+         {
+             bytes_pipe = 1; // slow down...
+             usleep(100000); // 0.1s
+         }
+ 
++        if (connector->clean_buffers || connector->shutdown)
++            break;
++
+         num_read = read(connector->pipefd2[0], buffer, bytes_pipe);
+ 
+         if (num_read > 0)
+         {
+-            while (circular_buf_free_size(connector->in_buffer) < num_read)
++            while (!connector->clean_buffers && !connector->shutdown &&
++                   circular_buf_free_size(connector->in_buffer) < num_read)
+                 usleep(20000);
++            if (connector->clean_buffers || connector->shutdown)
++                break;
+             circular_buf_put_range(connector->in_buffer, buffer, num_read);
+         }
+         if (num_read == 0)
+@@ -256,7 +291,7 @@ void *uucico_write_thread(void *conn) {
+     int num_written = 0;
+     uint8_t buffer[BUFFER_SIZE];
+ 
+-    while (running)
++    while (running && !connector->clean_buffers && !connector->shutdown)
+     {
+         bytes_to_read = circular_buf_size(connector->out_buffer);
+         if (bytes_to_read == 0)
+diff --git a/uucpd/net.c b/uucpd/net.c
+index 0b69a3c..a1e9c6e 100644
+--- a/uucpd/net.c
++++ b/uucpd/net.c
+@@ -39,6 +39,7 @@
+ #include <sys/socket.h>
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
++#include <errno.h>
+ 
+ #include "net.h"
+ 
+@@ -71,7 +72,9 @@ bool tcp_read(int sockt, uint8_t *buffer, size_t rx_size){
+         int trx_size = (rx_size - rcv_counter > TCP_BLOCK)? TCP_BLOCK : rx_size - rcv_counter;
+ 
+         len = recv(sockt, buffer + rcv_counter, trx_size, 0);
+-        if (len == 0){
++        if (len < 0 && errno == EINTR)
++            continue;
++        if (len <= 0){
+             fprintf(stderr, "tcp_read: socket read error.\n");
+             return false;
+         }
+diff --git a/uucpd/shm.c b/uucpd/shm.c
+old mode 100644
+new mode 100755
+index ce533b5..b2983a8
+--- a/uucpd/shm.c
++++ b/uucpd/shm.c
+@@ -54,6 +54,50 @@
+ 
+ #include "shm.h"
+ 
++int bridge_startup(key_t key)
++{
++    /* Slot 0 protects bridges/rings; slot 1 belongs to the daemon for its
++     * lifetime. Never remove/reinitialize an existing set: SEM_UNDO claims
++     * may belong to a surviving uuport or another live daemon. */
++    int semid = semget(key, 2, 0666 | IPC_CREAT | IPC_EXCL);
++    if (semid >= 0) {
++        unsigned short values[2] = {1, 1};
++        union { int val; struct semid_ds *buf; unsigned short *array; } arg;
++        arg.array = values;
++        if (semctl(semid, 0, SETALL, arg) < 0)
++            return -1;
++    } else if (errno == EEXIST) {
++        semid = semget(key, 2, 0);
++    }
++    if (semid < 0)
++        return -1;
++    struct sembuf claim[2] = {
++        {0, -1, SEM_UNDO | IPC_NOWAIT},
++        {1, -1, SEM_UNDO | IPC_NOWAIT}
++    };
++    if (semop(semid, claim, 2) < 0)
++        return -1;
++    return semid;
++}
++
++bool bridge_claim(int semid)
++{
++    struct sembuf op = {0, -1, SEM_UNDO | IPC_NOWAIT};
++    return semop(semid, &op, 1) == 0;
++}
++
++void bridge_release(int semid)
++{
++    struct sembuf op = {0, 1, SEM_UNDO | IPC_NOWAIT};
++    semop(semid, &op, 1);
++}
++
++bool bridge_busy(int semid)
++{
++    /* An invalid semaphore is not permission to reuse the rings. */
++    return semctl(semid, 0, GETVAL) != 1;
++}
++
+ bool shm_is_created(key_t key, size_t size)
+ {
+     int shmid = shmget(key, size, 0);
+diff --git a/uucpd/shm.h b/uucpd/shm.h
+old mode 100644
+new mode 100755
+index a443f36..8707820
+--- a/uucpd/shm.h
++++ b/uucpd/shm.h
+@@ -27,11 +27,19 @@
+ #include <inttypes.h>
+ #include <sys/ipc.h>
+ #include <sys/shm.h>
++#include <sys/sem.h>
+ #include <stdbool.h>
+ 
+ #define SYSV_SHM_KEY_STR 66664 // key for the rhizo_conn struct
+ #define SYSV_SHM_KEY_IB 66666 //  in buffer key (key+1 is also used)
+ #define SYSV_SHM_KEY_OB 66668 // out buffer key (key+1 is also used)
++#define SYSV_SEM_KEY_BRIDGE 66670
++
++/* One bridge per connector; SEM_UNDO releases its claim on process death. */
++int bridge_startup(key_t key);
++bool bridge_claim(int semid);
++void bridge_release(int semid);
++bool bridge_busy(int semid);
+ 
+ bool shm_is_created(key_t key, size_t size);
+ 
+diff --git a/uucpd/uucpd.c b/uucpd/uucpd.c
+old mode 100644
+new mode 100755
+index 2629257..87a8e21
+--- a/uucpd/uucpd.c
++++ b/uucpd/uucpd.c
+@@ -107,7 +107,9 @@ void *modem_thread(void *conn)
+     return NULL;
+ }
+ 
+-bool initialize_connector(rhizo_conn *connector){
++bool initialize_connector(rhizo_conn *connector, int bridge_semid){
++
++    connector->bridge_semid = bridge_semid;
+ 
+     connector->in_buffer = circular_buf_init_shm(INTERNAL_BUFFER_SIZE,  SYSV_SHM_KEY_IB);
+     connector->out_buffer = circular_buf_init_shm(INTERNAL_BUFFER_SIZE, SYSV_SHM_KEY_OB);
+@@ -232,6 +234,14 @@ int main (int argc, char *argv[])
+         exit(EXIT_FAILURE);
+     }
+ 
++    /* Claim startup BEFORE replacing any shared connector/rings. Refuse a
++     * restart while a surviving bridge or daemon still owns its claim. */
++    int bridge_semid = bridge_startup(SYSV_SEM_KEY_BRIDGE);
++    if (bridge_semid < 0) {
++        fprintf(stderr, "Bridge/daemon still active or semaphore unavailable; refusing startup.\n");
++        return EXIT_FAILURE;
++    }
++
+     if (shm_is_created(SYSV_SHM_KEY_STR, sizeof(rhizo_conn)))
+     {
+         fprintf(stderr, "Connector SHM is already created!\nDestroying it and creating again.\n");
+@@ -242,7 +252,11 @@ int main (int argc, char *argv[])
+     connector = shm_attach(SYSV_SHM_KEY_STR, sizeof(rhizo_conn));
+     tmp_conn = connector;
+ 
+-    initialize_connector(connector);
++    if (!connector || !initialize_connector(connector, bridge_semid)) {
++        fprintf(stderr, "Connector initialization failed.\n");
++        return EXIT_FAILURE;
++    }
++    bridge_release(bridge_semid); /* retain the daemon slot until process exit */
+ 
+     int opt;
+     while ((opt = getopt(argc, argv, "hlFmc:d:p:a:t:f:o:r:s:")) != -1)
+diff --git a/uucpd/uucpd.h b/uucpd/uucpd.h
+index 98bc014..ca770a0 100644
+--- a/uucpd/uucpd.h
++++ b/uucpd/uucpd.h
+@@ -83,6 +83,8 @@ typedef struct{
+     atomic_bool waiting_for_connection;
+     atomic_bool clean_buffers;
+     atomic_bool uucico_active;
++    /* Kernel-owned bridge lifetime; set once during connector initialization. */
++    int bridge_semid;
+     atomic_bool send_break;
+ 
+     atomic_int session_counter_read;
+diff --git a/uucpd/uuport.c b/uucpd/uuport.c
+index 5da1124..ed9dc65 100644
+--- a/uucpd/uuport.c
++++ b/uucpd/uuport.c
+@@ -49,10 +49,10 @@
+ #include "shm.h"
+ #include "circular_buffer.h"
+ 
+-rhizo_conn *connector_aux = NULL;
+ FILE *log_fd;
+ atomic_bool running_read;
+ atomic_bool running_write;
++static atomic_bool stop_requested;
+ 
+ #define TIMEOUT 40
+ 
+@@ -65,7 +65,7 @@ void *read_thread(void *conn)
+     int timeout_counter = TIMEOUT;
+ 
+     running_read = true;
+-    while (running_read && (connector->shutdown == false))
++    while (running_read && !stop_requested && !connector->shutdown && !connector->clean_buffers)
+     {
+         if (connector->connected == false)
+         {
+@@ -91,9 +91,25 @@ void *read_thread(void *conn)
+         if (bytes_to_read > BUFFER_SIZE)
+             bytes_to_read = BUFFER_SIZE;
+ 
+-        circular_buf_get_range(connector->out_buffer_p, buffer, bytes_to_read);
++        if (circular_buf_get_range(connector->out_buffer_p, buffer, bytes_to_read) != 0)
++            continue;
+ 
+-        bytes_written = write(1, buffer, bytes_to_read);
++        /* Nonblocking output lets retirement stop a backpressured bridge. */
++        int offset = 0;
++        while (offset < bytes_to_read && !stop_requested &&
++               !connector->shutdown && !connector->clean_buffers) {
++            bytes_written = write(1, buffer + offset, bytes_to_read - offset);
++            if (bytes_written > 0) {
++                offset += bytes_written;
++            } else if (bytes_written < 0 &&
++                       (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
++                usleep(10000);
++            } else {
++                running_read = false;
++                break;
++            }
++        }
++        bytes_written = offset;
+ 
+ //        fprintf(log_fd, "uuport: %d bytes written to uucico\n", bytes_written);
+ 
+@@ -124,8 +140,7 @@ void *write_thread(void *conn)
+     int bytes_to_read = 0;
+     int bytes_read = 0;
+ 
+-    running_write = true;
+-    while(running_write && (connector->shutdown == false))
++    while(running_write && !stop_requested && !connector->shutdown)
+     {
+         if (connector->clean_buffers == true)
+         {
+@@ -147,6 +162,10 @@ void *write_thread(void *conn)
+ 
+         // fprintf(log_fd, "uuport: %d bytes read from uucico\n", bytes_read);
+ 
++        if (bytes_read < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
++            usleep(100000);
++            continue;
++        }
+         if (bytes_read == -1)
+         {
+             fprintf(log_fd, "write_thread: Error in read(), errno: %d\n", errno);
+@@ -160,11 +179,14 @@ void *write_thread(void *conn)
+             continue;
+         }
+ 
+-        while (circular_buf_free_size(connector->in_buffer_p) < bytes_read)
++        while (running_write && !stop_requested && !connector->shutdown &&
++               !connector->clean_buffers && circular_buf_free_size(connector->in_buffer_p) < bytes_read)
+         {
+             fprintf(log_fd, "Buffer full!\n");
+             usleep(100000);
+         }
++        if (!running_write || stop_requested || connector->shutdown || connector->clean_buffers)
++            break;
+         circular_buf_put_range(connector->in_buffer_p, buffer, bytes_read);
+     }
+ 
+@@ -175,36 +197,9 @@ void *write_thread(void *conn)
+ }
+ 
+ void finish(int s){
+-
+-    if (s == SIGPIPE){
+-        fprintf(log_fd, "\nSIGPIPE: Doing nothing.\n");
+-        return;
+-    }
+-
+-    if (s == SIGINT)
+-        fprintf(log_fd, "\nSIGINT: Exiting.\n");
+-
+-    if (s == SIGTERM)
+-        fprintf(log_fd, "\nSIGTERM: Exiting.\n");
+-
+-    if (s == SIGQUIT)
+-        fprintf(log_fd, "\nSIGQUIT: Exiting.\n");
+-
+-    if (s == SIGHUP)
+-    {
+-        fprintf(log_fd, "\nSIGHUP: running shutdown...\n");
+-        running_write = false;
+-        running_read = false;
+-        fflush(log_fd);
+-        sleep(1);
+-    }
+-
+-    // some house keeping here?
+-    if (connector_aux)
+-        connector_aux->clean_buffers = true;
+-
+-    fclose(log_fd);
+-    exit(EXIT_SUCCESS);
++    /* Never exit while either thread can own a shared ring's spinlock. */
++    if (s != SIGPIPE)
++        stop_requested = 1;
+ }
+ 
+ 
+@@ -262,18 +257,18 @@ int main (int argc, char *argv[])
+     }
+     connector = shm_attach(SYSV_SHM_KEY_STR, sizeof(rhizo_conn));
+ 
+-    if (connector->shutdown == true)
+-    {
+-        fprintf(stderr, "uuardopd is in shutdown state. Exiting.\n");
++    /* Claim before checking retirement. A rejected entrant touches no rings
++     * and must not request cleanup after the previous session has retired. */
++    if (!bridge_claim(connector->bridge_semid))
++        return EXIT_FAILURE;
++    if (connector->shutdown || connector->clean_buffers || stop_requested) {
++        bridge_release(connector->bridge_semid);
+         return EXIT_FAILURE;
+     }
+ 
+     connector->in_buffer_p = circular_buf_connect_shm(INTERNAL_BUFFER_SIZE, SYSV_SHM_KEY_IB);
+     connector->out_buffer_p = circular_buf_connect_shm(INTERNAL_BUFFER_SIZE, SYSV_SHM_KEY_OB);
+ 
+-    // for signal() use
+-    connector_aux = connector;
+-
+     if (log_file[0])
+     {
+         log_fd = fopen(log_file, "a");
+@@ -295,17 +290,22 @@ int main (int argc, char *argv[])
+     }
+ 
+     pthread_t tid;
+-    pthread_create(&tid, NULL, write_thread, (void *) connector);
+-
+-    read_thread(connector);
++    int result = EXIT_FAILURE;
++    int input_flags = fcntl(0, F_GETFL), output_flags = fcntl(1, F_GETFL);
++    running_write = true;
++    if (input_flags >= 0 && output_flags >= 0 &&
++        fcntl(0, F_SETFL, input_flags | O_NONBLOCK) == 0 &&
++        fcntl(1, F_SETFL, output_flags | O_NONBLOCK) == 0 &&
++        pthread_create(&tid, NULL, write_thread, (void *) connector) == 0) {
++        read_thread(connector);
++        running_write = false;
++        pthread_join(tid, NULL);
++        result = EXIT_SUCCESS;
++    }
+ 
+     connector->clean_buffers = true;
+-
+-    // workaround... as write_thread blocks in fd 0...
++    /* This acknowledgment is the last shared-state write of this bridge. */
++    bridge_release(connector->bridge_semid);
+     fclose(log_fd);
+-    return EXIT_SUCCESS;
+-
+-    // correct should be this...
+-    pthread_join(tid, NULL);
+-    return EXIT_SUCCESS;
++    return result;
+ }
 diff --git a/uucpd/vara.c b/uucpd/vara.c
-index 1b8fb1c..e4c4ef1 100644
+old mode 100644
+new mode 100755
+index 7120b6b..dbcc4d5
 --- a/uucpd/vara.c
 +++ b/uucpd/vara.c
-@@ -30,6 +30,7 @@
- #include <arpa/inet.h>
- #include <sched.h>
+@@ -43,12 +43,45 @@
  #include <unistd.h>
+ #include <time.h>
+ #include <stdatomic.h>
 +#include <errno.h>
  
  #include "uucpd.h"
  #include "net.h"
-@@ -79,6 +80,26 @@ exit_local:
-     return EXIT_SUCCESS;
- }
- 
-+static void vara_discard_stale_data(rhizo_conn *connector)
+ #include "call_uucico.h"
+ #include "vara.h"
+ #include "serial.h"
++#include "shm.h"
++
++/* uucpd has one modem. Keep this thread lock out of its shared-memory ABI.
++ * Serialize receiving/enqueueing, session transitions, and the final drain. */
++static pthread_mutex_t vara_rx_mutex = PTHREAD_MUTEX_INITIALIZER;
++static unsigned long vara_generation;
++
++static void vara_stop(rhizo_conn *connector)
 +{
-+    uint8_t buffer[BUFFER_SIZE];
-+    ssize_t bytes_read;
-+    size_t bytes_discarded = 0;
-+
-+    do {
-+        bytes_read = recv(connector->data_socket, buffer, sizeof(buffer), MSG_DONTWAIT);
-+        if (bytes_read > 0)
-+            bytes_discarded += (size_t) bytes_read;
-+    } while (bytes_read > 0);
-+
-+    if (bytes_read < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
-+        fprintf(stderr, "Error draining retired VARA data, errno: %d\n", errno);
-+
-+    if (bytes_discarded > 0)
-+        fprintf(stderr, "Discarded %zu stale VARA data bytes at retired session boundary.\n",
-+                bytes_discarded);
++    connector->shutdown = true;
++    shutdown(connector->data_socket, SHUT_RDWR);
++    shutdown(connector->control_socket, SHUT_RDWR);
 +}
 +
++/* Called under vara_rx_mutex, only while retiring a disconnected session. */
++static bool vara_discard_stale_data(rhizo_conn *connector)
++{
++    uint8_t buffer[BUFFER_SIZE];
++    /* This is a fairness budget, not a limit on legitimate trailing data.
++     * Yield to control RX after each batch and keep retirement pending. */
++    for (unsigned attempts = 0; attempts < 256 && !connector->shutdown; ++attempts) {
++        ssize_t n = recv(connector->data_socket, buffer, sizeof(buffer), MSG_DONTWAIT);
++        if (n > 0 || (n < 0 && errno == EINTR))
++            continue;
++        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
++            return true;
++        fprintf(stderr, "Retired VARA data drain failed: recv=%zd errno=%d\n", n, n < 0 ? errno : 0);
++        vara_stop(connector);
++        return false;
++    }
++    return false;
++}
+ 
+ // A DISCONNECT we sent, and when: the next DISCONNECTED from the TNC ends that
+ // session's teardown, not a session that may have started since.  Private to
+@@ -66,49 +99,41 @@ void *vara_data_worker_thread_tx(void *conn)
+ {
+     rhizo_conn *connector = (rhizo_conn *) conn;
+     uint8_t buffer[BUFFER_SIZE];
+-    int bytes_to_read;
+-
+-    while(connector->shutdown == false){
+-
+-        // check if we are connected, otherwise, wait
+-        while (connector->connected == false || circular_buf_size(connector->in_buffer) == 0){
+-            if (connector->shutdown == true){
+-                goto exit_local;
+-            }
+-            sleep(1);
++    size_t pending = 0, offset = 0;
++    unsigned long generation = 0;
++
++    while (!connector->shutdown) {
++        pthread_mutex_lock(&vara_rx_mutex);
++        /* Drop bytes held under backpressure when their session retires. */
++        if (generation != vara_generation || connector->clean_buffers || !connector->connected) {
++            pending = offset = 0;
++            generation = vara_generation;
+         }
+-
+-    check_data_again:
+-        bytes_to_read = circular_buf_size(connector->in_buffer);
+-        if (bytes_to_read > BUFFER_SIZE)
+-            bytes_to_read = BUFFER_SIZE;
+-        if (bytes_to_read == 0)
+-        {
+-            usleep(50000); // 50ms
+-            goto check_data_again;
+-        }
+-
+-        circular_buf_get_range(connector->in_buffer, buffer, bytes_to_read);
+-
+-        // fprintf(stderr, "vara_data_worker_thread_tx: Read %d for sending to VARA\n", bytes_to_read);
+-
+-        while (connector->buffer_size + bytes_to_read >  MAX_VARA_BUFFER)
+-            sleep(1);
+-
+-        if (tcp_write(connector->data_socket, buffer, bytes_to_read) == false)
+-        {
+-            fprintf(stderr, "Error in tcp_write(data_socket)\n");
+-            connector->shutdown = true;
+-            goto exit_local;
++        if (connector->connected && !connector->clean_buffers && !connector->shutdown) {
++            if (!pending) {
++                pending = circular_buf_size(connector->in_buffer);
++                if (pending > sizeof(buffer))
++                    pending = sizeof(buffer);
++                if (pending && circular_buf_get_range(connector->in_buffer, buffer, pending) != 0)
++                    pending = 0;
++            }
++            if (pending && connector->buffer_size + pending <= MAX_VARA_BUFFER) {
++                ssize_t n = send(connector->data_socket, buffer + offset, pending, MSG_DONTWAIT | MSG_NOSIGNAL);
++                if (n > 0) {
++                    offset += n;
++                    pending -= n;
++                    connector->bytes_buffered_tx += n;
++                    if (!pending)
++                        offset = 0;
++                } else if (n == 0 || (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)) {
++                    vara_stop(connector);
++                }
++            }
+         }
+-		connector->bytes_buffered_tx += bytes_to_read;
+-		// fprintf(stderr, "bytes_buffered %d\n", connector->bytes_buffered_tx);
+-
+-        // buffer management hack
+-        sleep(1);
++        pthread_mutex_unlock(&vara_rx_mutex);
++        sleep(1); // preserve modem pacing, including backpressure
+     }
+ 
+-exit_local:
+     fprintf(stderr, "vara_data_worker_thread_tx exit.\n");
+     return EXIT_SUCCESS;
+ }
+@@ -116,33 +141,32 @@ exit_local:
  void *vara_data_worker_thread_rx(void *conn)
  {
      rhizo_conn *connector = (rhizo_conn *) conn;
-@@ -101,6 +122,13 @@ void *vara_data_worker_thread_rx(void *conn)
+-    uint8_t buffer[MAX_VARA_PACKET_SAFE];
++    uint8_t byte;
+ 
+     while(connector->shutdown == false){
+-
+-        while (connector->connected == false){
+-            if (connector->shutdown == true){
+-                goto exit_local;
+-            }
+-            connector->bytes_received = 0;
++        ssize_t n = -1;
++        if (!connector->connected) {
+             sleep(1);
++            continue;
+         }
+-
+-        if (tcp_read(connector->data_socket, buffer, 1) == false)
+-        {
+-            connector->shutdown = true;
+-            goto exit_local;
+-        }
+-
+-        while (circular_buf_free_size(connector->out_buffer) < 1)
+-        {
+-            usleep(100000); // 100ms
++        pthread_mutex_lock(&vara_rx_mutex);
++        /* No byte may remain in flight across an unlock, even on backpressure.
++         * Never block on the socket while holding up control/cleanup. */
++        if (connector->connected && !connector->clean_buffers &&
++            circular_buf_free_size(connector->out_buffer) > 0) {
++            n = recv(connector->data_socket, &byte, 1, MSG_DONTWAIT);
++            if (n == 1) {
++                circular_buf_put_range(connector->out_buffer, &byte, 1);
++                connector->bytes_received++;
++            } else if (n == 0 || (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)) {
++                vara_stop(connector);
++            }
+         }
+-        circular_buf_put_range(connector->out_buffer, buffer, 1);
+-        connector->bytes_received++;
++        pthread_mutex_unlock(&vara_rx_mutex);
++        if (n != 1)
++            usleep(10000); // bounded wait, including a full output buffer
+     }
+ 
+-exit_local:
+     fprintf(stderr, "vara_data_worker_thread_rx exit.\n");
+     return EXIT_SUCCESS;
+ }
+@@ -164,7 +188,7 @@ void *vara_control_worker_thread_rx(void *conn)
+         if (tcp_read(connector->control_socket, &rcv_byte, 1) == false)
+         {
+             fprintf(stderr, "Error in tcp_read(control_socket)\n");
+-            connector->shutdown = true;
++            vara_stop(connector);
              goto exit_local;
          }
  
-+        /* The control socket may report DISCONNECTED while this blocking data
-+         * read is still in flight. Never carry a byte from that retired
-+         * session into a later UUCP session. */
-+        if (connector->connected == false) {
-+            continue;
-+        }
-+
-         while (circular_buf_free_size(connector->out_buffer) < 1)
-         {
-             usleep(100000); // 100ms
-@@ -374,9 +402,11 @@ void *vara_control_worker_thread_tx(void *conn)
+@@ -207,6 +231,7 @@ void *vara_control_worker_thread_rx(void *conn)
+ 
+             if (!strcmp((char *) buffer, "DISCONNECTED"))
+             {
++                pthread_mutex_lock(&vara_rx_mutex);
+                 fprintf(stderr, "TNC: %s\n", buffer);
+ 
+                 // The end of a teardown we started: the session is already
+@@ -221,6 +246,7 @@ void *vara_control_worker_thread_rx(void *conn)
+                     connected_led_off(connector->serial_fd, connector->radio_type);
+                     connector->waiting_for_connection = false;
+                     fprintf(stderr, "Disconnect completed.\n");
++                    pthread_mutex_unlock(&vara_rx_mutex);
+                     continue;
+                 }
+ 
+@@ -231,6 +257,7 @@ void *vara_control_worker_thread_rx(void *conn)
+                 if (!connector->connected && !connector->waiting_for_connection)
+                 {
+                     fprintf(stderr, "DISCONNECTED with no link up, ignoring.\n");
++                    pthread_mutex_unlock(&vara_rx_mutex);
+                     continue;
+                 }
+ 
+@@ -247,23 +274,40 @@ void *vara_control_worker_thread_rx(void *conn)
+                 connector->connected = false;
+                 connected_led_off(connector->serial_fd, connector->radio_type);
+                 connector->waiting_for_connection = false;
++                pthread_mutex_unlock(&vara_rx_mutex);
+                 continue;
+             }
+ 
+             if (!memcmp(buffer, "CONNECTED", strlen("CONNECTED")))
+             {
++                pthread_mutex_lock(&vara_rx_mutex);
++                if (connector->shutdown) {
++                    pthread_mutex_unlock(&vara_rx_mutex);
++                    goto exit_local;
++                }
+                 fprintf(stderr, "TNC: %s\n", buffer);
+                 // a new link supersedes a teardown the TNC never confirmed
+                 disconnect_pending = false;
+                 connector->connected = true;
++                /* A new caller must retry after retirement; never let the old
++                 * cleanup kill its UUCP process or drain its greeting. */
++                if (connector->clean_buffers) {
++                    pthread_mutex_unlock(&vara_rx_mutex);
++                    if (!tcp_write(connector->control_socket, (uint8_t *) "DISCONNECT\r", 11))
++                        vara_stop(connector);
++                    continue;
++                }
+                 connected_led_on(connector->serial_fd, connector->radio_type);
+                 if (connector->waiting_for_connection == false)
+                 { // we are receiving a connection... call uucico!
+                     bool retval = call_uucico(connector);
+-                    if (retval == false)
++                    if (retval == false) {
+                         fprintf(stderr, "Error calling call_uucico()!\n");
++                        connector->clean_buffers = true;
++                    }
+                 }
+                 connector->waiting_for_connection = false;
++                pthread_mutex_unlock(&vara_rx_mutex);
+                 continue;
+             }
+ 
+@@ -377,7 +421,7 @@ void *vara_control_worker_thread_tx(void *conn)
+     if (ret == false)
+     {
+         fprintf(stderr, "Error in tcp_write(control_socket)\n");
+-        connector->shutdown = true;
++        vara_stop(connector);
+         goto exit_local;
+     }
+ 
+@@ -395,10 +439,11 @@ void *vara_control_worker_thread_tx(void *conn)
+                 memset(buffer,0,sizeof(buffer));
+                 sprintf(buffer,"DISCONNECT\r");
+                 // sprintf(buffer,"ABORT\r"); // shouldn't we use abort here?
+-                ret &= tcp_write(connector->control_socket, (uint8_t *)buffer, strlen(buffer));
+-                fprintf(stderr, "SENDING DISCONNECT\n");
+                 disconnect_sent = (long) time(NULL);
+                 disconnect_pending = true;
++                ret &= tcp_write(connector->control_socket, (uint8_t *)buffer, strlen(buffer));
++                if (!ret) { vara_stop(connector); goto exit_local; }
++                fprintf(stderr, "SENDING DISCONNECT\n");
+             }
              usleep(1200000); // sleep for threads finish their jobs (more than 1s here)
  
-             fprintf(stderr, "Connection closed. Cleaning internal buffers.\n");
-+            vara_discard_stale_data(connector);
-             circular_buf_reset(connector->in_buffer);
-             circular_buf_reset(connector->out_buffer);
+@@ -407,34 +452,48 @@ void *vara_control_worker_thread_tx(void *conn)
+             // have started).  A session that ended on its own has nothing
+             // left, and a killall would take the next session's uucico,
+             // which a gateway may start within a second.
+-            if (kill_session)
++            if (kill_session || bridge_busy(connector->bridge_semid))
+             {
+                 kill_session = false;
+                 system("killall uucico");
+                 system("killall uuport");
+             }
  
-             connector->clean_buffers = false;
- 			connector->buffer_size = 0;
-+            fprintf(stderr, "Connection cleanup complete.\n");
+-            fprintf(stderr, "Connection closed. Cleaning internal buffers.\n");
+-            circular_buf_reset(connector->in_buffer);
+-            circular_buf_reset(connector->out_buffer);
++            /* Neither bridge may retain bytes or write a late cleanup request
++             * after the rings are reset and the next session is admitted. */
++            while (!connector->shutdown &&
++                   (connector->connected || bridge_busy(connector->bridge_semid))) {
++                pthread_mutex_lock(&vara_rx_mutex);
++                if (disconnect_pending && (long) time(NULL) - disconnect_sent > 90) {
++                    fprintf(stderr, "No DISCONNECTED from the TNC in 90 s, taking the link as down.\n");
++                    disconnect_pending = false;
++                    connector->connected = false;
++                    connector->waiting_for_connection = false;
++                }
++                pthread_mutex_unlock(&vara_rx_mutex);
++                usleep(100000);
++            }
+ 
+-            // Do not wait here for the TNC's DISCONNECTED: on HF its teardown
+-            // can take tens of seconds, and a uucico started meanwhile must
+-            // be able to queue its data (uuport stops while clean_buffers is
+-            // set).  The CONNECT for it goes out once the old link is down.
+-            connector->clean_buffers = false;
+-			connector->buffer_size = 0;
+-        }
++            usleep(1200000);
+ 
+-        // A TNC that never confirms our DISCONNECT must not hold the link.
+-        if (disconnect_pending &&
+-            (long) time(NULL) - disconnect_sent > 90)
+-        {
+-            fprintf(stderr, "No DISCONNECTED from the TNC in 90 s, taking the link as down.\n");
+-            circular_buf_reset(connector->out_buffer);
+-            disconnect_pending = false;
+-            connector->connected = false;
+-            connector->waiting_for_connection = false;
++            while (!connector->shutdown) {
++                pthread_mutex_lock(&vara_rx_mutex);
++                if (!connector->connected && !bridge_busy(connector->bridge_semid) &&
++                    vara_discard_stale_data(connector)) {
++                    circular_buf_reset(connector->in_buffer);
++                    circular_buf_reset(connector->out_buffer);
++                    ++vara_generation;
++                    connector->buffer_size = 0;
++                    connector->clean_buffers = false;
++                    fprintf(stderr, "Connection cleanup complete.\n");
++                    pthread_mutex_unlock(&vara_rx_mutex);
++                    break;
++                }
++                pthread_mutex_unlock(&vara_rx_mutex);
++                usleep(10000);
++            }
++            if (connector->shutdown)
++                goto exit_local;
          }
+ 
+         // Logic to start a connection
+@@ -457,7 +516,7 @@ void *vara_control_worker_thread_tx(void *conn)
+         if (ret == false)
+         {
+             fprintf(stderr, "Error in tcp_write(control_socket)\n");
+-            connector->shutdown = true;
++            vara_stop(connector);
+             goto exit_local;
+         }
+ 

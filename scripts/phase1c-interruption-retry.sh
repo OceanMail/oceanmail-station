@@ -17,9 +17,9 @@ PAYLOAD_SIZE="${PAYLOAD_SIZE:-4096}"
 INTERRUPT_AFTER="${INTERRUPT_AFTER:-90}"
 INTERRUPT_RX_THRESHOLD="${INTERRUPT_RX_THRESHOLD:-0}"
 INTERRUPT_MAX_WAIT="${INTERRUPT_MAX_WAIT:-600}"
-HERMES_NET_SHA="5c76adff754de49c0b934c7fd7bddf7619b0c3d6"
-MERCURY_TAG="v1.9.13"
-MERCURY_SHA="4eac25e06a0c88996621bc74af5b7b2f0d353848"
+HERMES_NET_SHA="0fee4a53f54074ad6237b9fa1083a272cac89f60"
+MERCURY_TAG="${OCEANMAIL_MERCURY_TAG-}"
+MERCURY_SHA="${OCEANMAIL_MERCURY_SHA:-638193b9a9cc5ab15f272805af116e94b2fdf4c6}"
 MERCURY_DIR="${UPSTREAM_BASE:-$HOME/Projects/upstream}/mercury"
 LOG_BASE="${LOG_BASE:-$HOME/oceanmail-logs}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -55,6 +55,10 @@ max_rx_total() {
 }
 
 stop_link() {
+    if [[ -n "${OCEANMAIL_MERCURY_DOCKER_IMAGE:-}" ]]; then
+        bash "$REPO_ROOT/scripts/phase4i-mercury-docker-loop.sh" stop
+        return
+    fi
     pkill -9 -x mercury 2>/dev/null || true
     pkill -9 -f '/noisebridge' 2>/dev/null || true
     pkill -9 -f 'arecord -D plughw:' 2>/dev/null || true
@@ -70,6 +74,11 @@ trap cleanup EXIT
 start_mercury() {
     local label="$1"
     stop_link
+    if [[ -n "${OCEANMAIL_MERCURY_DOCKER_IMAGE:-}" ]]; then
+        bash "$REPO_ROOT/scripts/phase4i-mercury-docker-loop.sh" start >"$RUN_DIR/loopsim-$label.log" 2>&1
+        cat "$RUN_DIR/loopsim-$label.log"
+        return
+    fi
     cd "$MERCURY_DIR"
     CARD="$CARD" MERCURY="./mercury" ./utils/loopsim/run_loopsim.sh 0.0 0.0 >"$RUN_DIR/loopsim-$label.log" 2>&1
     cat "$RUN_DIR/loopsim-$label.log"
@@ -129,10 +138,13 @@ if ! docker build --build-arg "HERMES_NET_SHA=$HERMES_NET_SHA" \
 fi
 printf 'PASS: station image ready\n'
 
+if [[ -n "${OCEANMAIL_MERCURY_DOCKER_IMAGE:-}" ]]; then
+    bash "$REPO_ROOT/scripts/phase4i-mercury-docker-loop.sh" verify-pin | tee "$RUN_DIR/mercury-container-pin.txt"
+else
 section "Verify pinned Mercury"
 cd "$MERCURY_DIR"
 git fetch --tags --prune origin >"$RUN_DIR/mercury-fetch.log" 2>&1
-TAG_SHA="$(git rev-parse "refs/tags/$MERCURY_TAG^{commit}")"
+TAG_SHA="$(git rev-parse "${MERCURY_TAG:+refs/tags/}${MERCURY_TAG:-$MERCURY_SHA}^{commit}")"
 [[ "$TAG_SHA" == "$MERCURY_SHA" ]] || { printf 'ERROR: Mercury pin mismatch\n' >&2; exit 2; }
 git switch --detach "$MERCURY_SHA" >/dev/null
 make -j"$(nproc)" >"$RUN_DIR/mercury-build.log" 2>&1
@@ -147,6 +159,8 @@ sleep 1
 CARD="$(awk '/Loopback/ {print $1; exit}' /proc/asound/cards 2>/dev/null || true)"
 [[ -n "$CARD" ]] || { printf 'ERROR: Loopback ALSA card not found\n' >&2; exit 2; }
 printf 'Loopback ALSA card: %s\n' "$CARD"
+
+fi
 
 section "Prepare two isolated UUCP stations"
 for side in a b; do

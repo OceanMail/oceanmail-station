@@ -1,5 +1,12 @@
 # OceanMail Station — Current Status
 
+> Dependency reconciliation proposed on 2026-09-26: current HERMES
+> `0fee4a53f54074ad6237b9fa1083a272cac89f60` with an isolated temporary retirement
+> patch, and unmodified Mercury `638193b9a9cc5ab15f272805af116e94b2fdf4c6`.
+> [Current inputs, regression and acceptance gates](UPSTREAM_RECONCILIATION.md)
+> supersede dependency selection below; older phase evidence remains historical.
+
+
 Updated: 2026-09-19
 
 This is the authoritative live implementation-status document for `OceanMail/oceanmail-station`.

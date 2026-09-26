@@ -1,1 +1,6 @@
 /target/
+/scripts/hermes-session-regression/*-tests
+/scripts/hermes-session-regression/logs/
+/scripts/hermes-session-regression/*results.json
+/scripts/hermes-session-regression/__pycache__/
+/upstream-evidence/

@@ -17,7 +17,7 @@ concurrency:
 jobs:
   phase4i:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     env:
       OCEANMAIL_MERCURY_DOCKER_IMAGE: oceanmail-phase4i-mercury:ci
@@ -79,7 +79,7 @@ jobs:
 
       - name: Preflight exact-pin HERMES patch build
         env:
-          HERMES_NET_SHA: 5c76adff754de49c0b934c7fd7bddf7619b0c3d6
+          HERMES_NET_SHA: 0fee4a53f54074ad6237b9fa1083a272cac89f60
         run: |
           docker build \
             --target builder \
@@ -91,8 +91,8 @@ jobs:
 
       - name: Build pinned Mercury tool container
         env:
-          MERCURY_TAG: v1.9.13
-          MERCURY_SHA: 4eac25e06a0c88996621bc74af5b7b2f0d353848
+          MERCURY_TAG: ""
+          MERCURY_SHA: 638193b9a9cc5ab15f272805af116e94b2fdf4c6
         run: |
           docker build \
             --build-arg "MERCURY_TAG=$MERCURY_TAG" \
@@ -114,6 +114,15 @@ jobs:
           printf '%s\n' 'PASS: containerized Mercury loop transferred 1024 deterministic bytes'
           bash scripts/phase4i-mercury-docker-loop.sh stop
           trap - EXIT
+
+      - name: Prove durable interruption and retry with the selected combination
+        timeout-minutes: 30
+        env:
+          LOG_BASE: ${{ github.workspace }}/phase4i-ci-evidence
+          PAYLOAD_SIZE: 4096
+          INTERRUPT_RX_THRESHOLD: 512
+          INTERRUPT_MAX_WAIT: 300
+        run: timeout 1700 bash scripts/phase1c-interruption-retry.sh
 
       - name: Run full Phase 4I returned-receipt acceptance
         env:

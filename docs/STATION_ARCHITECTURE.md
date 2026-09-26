@@ -1,5 +1,12 @@
 # OceanMail Station — 0.2 Architecture
 
+> Dependency reconciliation proposed on 2026-09-26: current HERMES
+> `0fee4a53f54074ad6237b9fa1083a272cac89f60` with an isolated temporary retirement
+> patch, and unmodified Mercury `638193b9a9cc5ab15f272805af116e94b2fdf4c6`.
+> [Current inputs, regression and acceptance gates](UPSTREAM_RECONCILIATION.md)
+> supersede dependency selection below; older phase evidence remains historical.
+
+
 Status: **no-radio proofs complete through Phase 4I; physical-radio Phase 5 is held pending hardware and explicit authorization.**
 
 For live implementation status and continuation instructions, see [`CURRENT_STATUS.md`](CURRENT_STATUS.md).

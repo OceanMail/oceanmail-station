@@ -14,8 +14,7 @@ RUN_DIR="$LOG_BASE/phase4e-postfix-uucp-correlation-$RUN_ID"
 PHASE1_IMAGE="${PHASE1_IMAGE:-oceanmail-uucp-lab:phase1}"
 PHASE2_IMAGE="${PHASE2_IMAGE:-oceanmail-mail-lab:phase2}"
 PHASE2B_IMAGE="${PHASE2B_IMAGE:-oceanmail-mail-lab:phase2b}"
-HERMES_NET_SHA="5c76adff754de49c0b934c7fd7bddf7619b0c3d6"
-LIBCMIME_SHA="dd21eb096d162656e30243f60fc4bc35ad39ae6e"
+HERMES_NET_SHA="0fee4a53f54074ad6237b9fa1083a272cac89f60"
 POSTFIX_NAME="${POSTFIX_NAME:-oceanmail-phase4e-postfix}"
 PORT="${PORT:-18084}"
 BIND="127.0.0.1:$PORT"
@@ -74,7 +73,6 @@ printf 'Repository: %s\n' "$REPO_ROOT"
 printf 'Station API bind: %s\n' "$BIND"
 printf 'State DB: %s\n' "$STATE_DB"
 printf 'HERMES net: %s\n' "$HERMES_NET_SHA"
-printf 'libcmime: %s\n' "$LIBCMIME_SHA"
 printf 'Evidence directory: %s\n' "$RUN_DIR"
 printf 'Acceptance boundary: Postfix -> HERMES uuxcomp -> exact queued Taylor UUCP crmail job\n'
 printf 'Not started by this test: uucico, Mercury, constrained-link transfer, physical radio\n'
@@ -103,7 +101,6 @@ docker build -f "$REPO_ROOT/lab/phase2/Dockerfile" -t "$PHASE2_IMAGE" "$REPO_ROO
     }
 docker build \
     --build-arg "HERMES_NET_SHA=$HERMES_NET_SHA" \
-    --build-arg "LIBCMIME_SHA=$LIBCMIME_SHA" \
     -f "$REPO_ROOT/lab/phase2b/Dockerfile" -t "$PHASE2B_IMAGE" "$REPO_ROOT" \
     >"$RUN_DIR/phase2b-image-build.log" 2>&1 || {
         tail -n 220 "$RUN_DIR/phase2b-image-build.log" >&2 || true
