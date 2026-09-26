@@ -1,0 +1,7 @@
+{
+  "include": ["../scripts", "."],
+  "exclude": ["tools", "reports"],
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Linux"
+}

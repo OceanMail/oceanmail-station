@@ -1,0 +1,18 @@
+# Station S1 reviewed local rules; no mutable registry rules or auth token.
+# Syntactic review leads only. This is not an authorization/dataflow audit.
+rules:
+  - id: python-eval
+    languages: [python]
+    message: Dynamic eval requires a trust-boundary review; unconfirmed hypothesis.
+    severity: WARNING
+    pattern: eval(...)
+  - id: python-shell-process
+    languages: [python]
+    message: shell=True requires command/input review; unconfirmed hypothesis.
+    severity: WARNING
+    pattern: subprocess.$F(..., shell=True, ...)
+  - id: rust-unsafe-block
+    languages: [rust]
+    message: Review memory/lifetime assumptions; unsafe is not proof of a defect.
+    severity: INFO
+    pattern: unsafe { ... }

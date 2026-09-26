@@ -1,0 +1,145 @@
+name: Phase 4I Linux acceptance
+
+on:
+  push:
+    branches: [main, publication/github-hosted-pr-ci]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase4i-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase4i:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    env:
+      OCEANMAIL_MERCURY_DOCKER_IMAGE: oceanmail-phase4i-mercury:ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Identify GitHub-hosted runner
+        run: |
+          printf 'Runner name: %s\n' "$RUNNER_NAME"
+          printf 'Runner OS: %s\n' "$RUNNER_OS"
+          printf 'Runner arch: %s\n' "$RUNNER_ARCH"
+          uname -a
+          cat /etc/os-release
+
+      - name: Verify minimal runner prerequisites
+        run: |
+          set -u
+          missing=0
+          for cmd in docker python3 git make gcc curl sha256sum pgrep pkill ss timeout; do
+            if command -v "$cmd" >/dev/null 2>&1; then
+              printf 'PASS: %-12s %s\n' "$cmd" "$(command -v "$cmd")"
+            else
+              printf 'MISSING: %s\n' "$cmd" >&2
+              missing=1
+            fi
+          done
+
+          if docker version && docker info >/dev/null; then
+            printf 'PASS: runner account can access Docker\n'
+          else
+            printf 'MISSING/INACCESSIBLE: Docker daemon for runner account\n' >&2
+            missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            printf 'FAIL: minimal GitHub-hosted runner prerequisites are incomplete\n' >&2
+            exit 1
+          fi
+
+      - name: Install pinned ephemeral Rust toolchain
+        env:
+          RUST_TOOLCHAIN: 1.98.1
+        run: |
+          export RUSTUP_HOME="$RUNNER_TEMP/rustup"
+          export CARGO_HOME="$RUNNER_TEMP/cargo"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN"
+          "$CARGO_HOME/bin/rustup" component add rustfmt --toolchain "$RUST_TOOLCHAIN"
+          printf 'RUSTUP_HOME=%s\n' "$RUSTUP_HOME" >> "$GITHUB_ENV"
+          printf 'CARGO_HOME=%s\n' "$CARGO_HOME" >> "$GITHUB_ENV"
+          printf '%s\n' "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          "$CARGO_HOME/bin/cargo" --version
+          "$CARGO_HOME/bin/rustc" --version
+          "$CARGO_HOME/bin/rustfmt" --version
+
+      - name: Preflight exact-pin HERMES patch build
+        env:
+          HERMES_NET_SHA: 5c76adff754de49c0b934c7fd7bddf7619b0c3d6
+        run: |
+          docker build \
+            --target builder \
+            --build-arg "HERMES_NET_SHA=$HERMES_NET_SHA" \
+            -f lab/phase1/Dockerfile \
+            -t oceanmail-phase4i-hermes-builder:ci \
+            .
+          printf 'PASS: exact pinned HERMES accepts and compiles the tracked OceanMail lab patch\n'
+
+      - name: Build pinned Mercury tool container
+        env:
+          MERCURY_TAG: v1.9.13
+          MERCURY_SHA: 4eac25e06a0c88996621bc74af5b7b2f0d353848
+        run: |
+          docker build \
+            --build-arg "MERCURY_TAG=$MERCURY_TAG" \
+            --build-arg "MERCURY_SHA=$MERCURY_SHA" \
+            -f lab/phase4i-mercury/Dockerfile \
+            -t "$OCEANMAIL_MERCURY_DOCKER_IMAGE" \
+            .
+          bash scripts/phase4i-mercury-docker-loop.sh verify-pin
+
+      - name: Prove containerized Mercury Pulse loop
+        run: |
+          trap 'bash scripts/phase4i-mercury-docker-loop.sh stop' EXIT
+          bash scripts/phase4i-mercury-docker-loop.sh start
+          bash scripts/phase4i-mercury-docker-loop.sh drive 1024 180
+          printf '%s\n' '--- final Mercury A conn state ---'
+          grep 'conn:' /tmp/mA.log | tail -n 8 || true
+          printf '%s\n' '--- final Mercury B conn state ---'
+          grep 'conn:' /tmp/mB.log | tail -n 8 || true
+          printf '%s\n' 'PASS: containerized Mercury loop transferred 1024 deterministic bytes'
+          bash scripts/phase4i-mercury-docker-loop.sh stop
+          trap - EXIT
+
+      - name: Run full Phase 4I returned-receipt acceptance
+        env:
+          LOG_BASE: ${{ github.workspace }}/phase4i-ci-evidence
+        run: |
+          bash scripts/phase4i-ci-pulse-acceptance.sh
+
+      - name: Preserve diagnostic evidence
+        if: always()
+        run: |
+          bash scripts/phase4i-mercury-docker-loop.sh stop >/dev/null 2>&1 || true
+          mkdir -p phase4i-ci-evidence/ci-final
+          cp /tmp/mA.log phase4i-ci-evidence/ci-final/mA.log 2>/dev/null || true
+          cp /tmp/mB.log phase4i-ci-evidence/ci-final/mB.log 2>/dev/null || true
+          if [ -d phase4i-ci-evidence ]; then
+            docker run --rm \
+              -v "$GITHUB_WORKSPACE/phase4i-ci-evidence:/evidence" \
+              debian:trixie \
+              chmod -R a+rX /evidence
+          fi
+
+      - name: Upload Phase 4I evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase4i-linux-evidence-${{ github.run_id }}
+          path: phase4i-ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14

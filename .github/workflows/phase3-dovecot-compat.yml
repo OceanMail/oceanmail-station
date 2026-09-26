@@ -1,0 +1,59 @@
+name: Phase 3 Dovecot compatibility
+
+on:
+  push:
+    branches:
+      - main
+      - publication/github-hosted-pr-ci
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phase3a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Verify GitHub-hosted Docker
+        run: |
+          printf 'Runner: %s (%s/%s)\n' "$RUNNER_NAME" "$RUNNER_OS" "$RUNNER_ARCH"
+          docker version
+          docker info
+          python3 --version
+          git --version
+
+      - name: Run Phase 3A Dovecot compatibility acceptance
+        env:
+          LOG_BASE: ${{ github.workspace }}/phase3-ci-evidence
+        run: |
+          bash -n scripts/phase3a-standard-mail-client.sh
+          bash scripts/phase3a-standard-mail-client.sh
+
+      - name: Preserve readable evidence
+        if: always()
+        run: |
+          if [ -d phase3-ci-evidence ]; then
+            docker run --rm \
+              -v "$PWD/phase3-ci-evidence:/evidence" \
+              debian:trixie \
+              chmod -R a+rX /evidence
+          fi
+
+      - name: Upload Phase 3 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase3-dovecot-evidence-${{ github.run_id }}
+          path: phase3-ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14

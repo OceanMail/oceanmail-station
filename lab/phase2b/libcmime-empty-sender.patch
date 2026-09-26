@@ -1,0 +1,11 @@
+--- a/src/cmime_message.c
++++ b/src/cmime_message.c
+@@ -457,7 +457,7 @@
+     assert(message);
+     // fallback if sender is empty
+     if (sender == NULL) {
+-        asprintf(&sender, "");
++        sender = "";
+     } 
+ 
+     ca = cmime_address_parse_string(sender);

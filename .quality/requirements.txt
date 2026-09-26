@@ -1,0 +1,6 @@
+# Initial direct pins; resolved freeze and pip install report retained per bootstrap.
+# This is not a complete transitive/hash lock (future S3 work).
+ruff==0.12.12
+basedpyright==1.31.4
+pip-audit==2.9.0
+shellcheck-py==0.10.0.1

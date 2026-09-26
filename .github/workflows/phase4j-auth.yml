@@ -1,0 +1,45 @@
+name: Phase 4J laboratory auth
+
+on:
+  push:
+    branches: [main, publication/github-hosted-pr-ci]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase4j-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  auth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install pinned ephemeral Rust toolchain
+        env:
+          RUST_TOOLCHAIN: 1.98.1
+        run: |
+          export RUSTUP_HOME="$RUNNER_TEMP/rustup"
+          export CARGO_HOME="$RUNNER_TEMP/cargo"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN"
+          "$CARGO_HOME/bin/rustup" component add rustfmt --toolchain "$RUST_TOOLCHAIN"
+          printf 'RUSTUP_HOME=%s\n' "$RUSTUP_HOME" >> "$GITHUB_ENV"
+          printf 'CARGO_HOME=%s\n' "$CARGO_HOME" >> "$GITHUB_ENV"
+          printf '%s\n' "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Unit and authorization-isolation tests
+        run: |
+          rustfmt --edition 2021 --check src/auth.rs src/lease.rs
+          cargo test --locked
+      - name: Real-process loopback HTTP acceptance
+        run: |
+          cargo build --locked
+          python3 scripts/test-phase4j-auth.py

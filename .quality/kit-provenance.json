@@ -1,0 +1,13 @@
+{
+  "source": "Owner-supplied OceanMail CI retrofit kit, 2026-09-22",
+  "sha256": {
+    "README.md": "113f7b224bb8d4d8ad92e98cbc577836b2dc693c47e57f41ab50c684d65d0281",
+    "EXECUTION-PLAN.md": "f3bc8ba7fad7bdd4d072cfd1d9aadc9f117a37b9d2d3a087d2516ecc942249c9",
+    "CI-CONTRACT.md": "49427a0eca9653d670ba7e2a6bff7e4d9e49c54ae23f7d517f0397ebfe5230a2",
+    "REVIEW-CHECKLIST.md": "093984c21a09291378aa6e0df884597f8c60b50ff97d05e564b2fc52f18dd21a",
+    "scripts/measure.py": "fbb3f53c26d4d52d72af3295bb48ce62b0fee5dd832ab7e709b69bb75e0745fe",
+    "bootstrap-tools.sh": "23a2d65702269007d1ab5d366ad255f664b54ab40c7571fc43aec137e66d21f0",
+    "profiles/OceanMail__oceanmail-station.json": "64399535fa1e40729017503f8129c19c5d4f270d3d7a693aa0bc6497e515d919",
+    "semgrep-rules.yml": "daf733bf5b1c3e75c5589a358ed6687ed8031e145340ddb8dab6f8ed28c56e3e"
+  }
+}
