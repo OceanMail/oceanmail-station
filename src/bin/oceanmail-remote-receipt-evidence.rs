@@ -6,6 +6,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+// This tool has no way to itself re-verify that the far-side mailbox was
+// actually inspected: that verification happens in the caller (see
+// scripts/phase4h-remote-mailbox-receipt.sh's real `python3 -c "import
+// mailbox; ..."` check before it ever invokes `record`). Restricting
+// `--receipt-kind` to exactly the claims this tool's callers are known to
+// have verified prevents an unreviewed future caller from writing the
+// strong `remote_mailbox_receipt_observed` durable evidence claim (AGENTS.md:
+// "exact far-side mailbox evidence, not human-read status") for a receipt
+// kind nothing has actually checked. Mirrors validate_trust_state's
+// fail-closed allow-list in oceanmail-returned-receipt-evidence.rs.
+const RECOGNIZED_RECEIPT_KIND: &str = "mailbox_message_present";
+
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 struct RemoteReceiptEvidence {
     observation_id: String,
@@ -52,6 +64,7 @@ fn record_command(args: &[String]) -> Result<(), AnyError> {
         )
         .into());
     }
+    validate_receipt_kind(&receipt_kind)?;
 
     let receipt = record_receipt(
         &db_path,
@@ -125,6 +138,21 @@ fn usage_error() -> AnyError {
         "usage: oceanmail-remote-receipt-evidence record [--state-db PATH] --remote-system SYSTEM --uucp-job-id ID --message-id ID --receipt-kind KIND --source SOURCE | oceanmail-remote-receipt-evidence list [--state-db PATH]",
     )
     .into()
+}
+
+fn validate_receipt_kind(receipt_kind: &str) -> Result<(), AnyError> {
+    if receipt_kind != RECOGNIZED_RECEIPT_KIND {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "unsupported receipt-kind {receipt_kind:?}; this tool only accepts {RECOGNIZED_RECEIPT_KIND:?} \
+                 because that is the only claim its current callers actually verify before recording it \
+                 (see scripts/phase4h-remote-mailbox-receipt.sh)"
+            ),
+        )
+        .into());
+    }
+    Ok(())
 }
 
 fn open_connection(db_path: &Path) -> Result<Connection, AnyError> {
@@ -300,4 +328,19 @@ fn load_receipts(connection: &Connection) -> Result<Vec<RemoteReceiptEvidence>, 
         })?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn receipt_kind_is_fail_closed_to_the_one_verified_claim() {
+        assert!(validate_receipt_kind(RECOGNIZED_RECEIPT_KIND).is_ok());
+        assert!(validate_receipt_kind("").is_err());
+        assert!(validate_receipt_kind("mailbox_message_verified").is_err());
+        assert!(validate_receipt_kind("delivered").is_err());
+        assert!(validate_receipt_kind(" mailbox_message_present").is_err());
+        assert!(validate_receipt_kind("mailbox_message_present ").is_err());
+    }
 }
