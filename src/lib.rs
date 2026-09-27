@@ -321,6 +321,7 @@ pub fn initialize_station(db_path: &Path, requested_name: &str) -> Result<Statio
     }
 
     let mut connection = Connection::open(db_path)?;
+    connection.busy_timeout(std::time::Duration::from_secs(5))?;
     initialize_schema(&connection)?;
     let transaction = connection.transaction()?;
 
@@ -396,6 +397,7 @@ pub fn reconcile_outbound_snapshot(
     observed_at_unix: i64,
 ) -> Result<(), AnyError> {
     let mut connection = Connection::open(db_path)?;
+    connection.busy_timeout(std::time::Duration::from_secs(5))?;
     initialize_schema(&connection)?;
     let transaction = connection.transaction()?;
 
@@ -553,6 +555,7 @@ fn insert_outbound_event(
 
 pub fn load_outbound_history(db_path: &Path) -> Result<OutboundQueueHistory, AnyError> {
     let connection = Connection::open(db_path)?;
+    connection.busy_timeout(std::time::Duration::from_secs(5))?;
     initialize_schema(&connection)?;
 
     let mut job_statement = connection.prepare(
