@@ -97,7 +97,7 @@ The final Phase 4I boundary was reached by disproving several tempting but incor
 - **draining at the next new-session `CONNECTED` boundary was rejected.** The remote peer may already be able to send new-session UUCP data before the local control thread processes that notification, so this can consume valid new data;
 - the accepted stale-tail drain point is the **retired old-session cleanup boundary**, after Mercury has provided the old session an opportunity to flush receive data to the old TCP stream and before a later reciprocal session is released.
 
-The HERMES upstream/integration follow-up is tracked in issue #35. As of 2026-09-11, current `Rhizomatica/hermes-net/main` still lacks the OceanMail stale-tail handling and explicit cleanup-complete boundary, so the local tracked patch must not be silently removed until an upstream replacement is accepted and the full reciprocal acceptance is rerun.
+The HERMES upstream/integration follow-up is tracked in upstream lifecycle work. As of 2026-09-11, current `Rhizomatica/hermes-net/main` still lacks the OceanMail stale-tail handling and explicit cleanup-complete boundary, so the local tracked patch must not be silently removed until an upstream replacement is accepted and the full reciprocal acceptance is rerun.
 
 ## Portable no-radio execution
 

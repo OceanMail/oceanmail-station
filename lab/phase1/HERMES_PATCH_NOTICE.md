@@ -13,7 +13,7 @@
 
 The build rejects any other SHA, runs `git apply --check`, and records the upstream
 SHA and patch digest in the image. Rebuild and restart **both uucpd and uuport**:
-the shared connector includes a semaphore identifier. The rebased archive candidate
+the shared connector includes a semaphore identifier. The replacement patch
 preserves upstream's pre-agreed startup, duplicate disconnect handling and 90-second
 teardown fallback, but waits for bridge workers before reopening the session.
 
@@ -36,4 +36,4 @@ Startup atomically claims bridge and daemon semaphore slots before touching shar
 rings. An active daemon or surviving bridge makes startup fail closed. The set is
 reused after process death; it is never removed or reset on restart. An older
 one-slot semaphore set is incompatible and also fails closed; stop all old
-processes and use a fresh IPC namespace when upgrading from the archive candidate.
+processes and use a fresh IPC namespace when upgrading from a one-slot implementation.

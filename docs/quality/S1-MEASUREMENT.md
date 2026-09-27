@@ -4,12 +4,11 @@ Source/tooling head: `2f22edba9a57ae7782fec0f9f27b81f555eaaed5` (clean before an
 Base: `ec9e5f232aac722bae25a979098100cc3c0dbaf9`.
 Measurement: 2026-09-22T22:01:27.125616+00:00 through 2026-09-22T22:01:45.505309+00:00.
 
-The following evidence-only commit adds this document and the sealed raw report;
-no application, test, tool or configuration change follows the measured source.
-Final PR-head rerun and CI dispatch URLs/SHAs are recorded in the draft PR and
-local review handoff. A source measurement is not synthetic-merge CI evidence.
-
-The raw source report archive is retained only in the private historical repository because it contains local environment paths. It is intentionally omitted from this fresh source release. The measurements below are historical reported results, not independently reproducible evidence supplied by this repository.
+This document summarizes the historical measurement of the source identified above.
+The measurements below are historical reported results, not current-commit CI
+or a reproducible evidence bundle. Raw environment-specific reports are not
+included. Run the [measurement tooling](../../.quality/README.md) on the desired
+public commit to obtain fresh evidence.
 
 ## STATIC / UNIT and local process evidence
 
@@ -121,14 +120,13 @@ are retained. Complete transitive reproducibility is not claimed.
 
 ## Remaining evidence boundaries
 
-Established Phase 3/4I/4J workflow dispatches must identify the final PR head;
-their results belong in the draft PR handoff. Current path filters exclude these
-tooling/docs changes, so no synthetic-merge run is automatically generated.
-No main-merge evidence exists because merging is not authorized. Existing
-candidate PRs #51/#52 and their failures/reruns remain independent; their green
-runs do not prove this head. LIVE / PRODUCT: none; no RF or production-security
+This S1 report predates the current public workflows and later tooling. For
+current acceptance, identify the exact public head and use its Phase 3/4I/4J
+workflow results; see [public CI](../PUBLIC_CI.md). Results from another
+revision do not validate the selected head. LIVE / PRODUCT: none; no RF or production-security
 claim. Embedded/generated code, other platforms, scanner build dependencies and
 Docker/apt/upstream advisories remain gaps as described in the tooling guide.
 
 No baseline, broad suppression, dependency/upstream promotion, source cleanup,
-required workflow or branch protection was introduced. S2 is not started.
+required workflow or branch protection was introduced by S1. Subsequent phase
+status is recorded in the [current tooling guide](../../.quality/README.md).

@@ -1,8 +1,10 @@
 # Station quality measurement and S3a adapters
 
-This public port adds the draft S3a tooling described in [the handoff](S3A-HANDOFF.md).
-No production baseline or required quality gate is enabled. The original S1
-measurement and archive review are historical context, not current-head acceptance.
+The S3a tooling merged in [Station PR #4](https://github.com/OceanMail/oceanmail-station/pull/4)
+is described in [the handoff](S3A-HANDOFF.md) and coordinated by the public
+[quality rollout](https://github.com/OceanMail/oceanmail-project/blob/main/docs/specifications/ci-quality-retrofit.md).
+No production baseline or required quality gate is enabled. Original S1
+measurements are historical context, not current-head acceptance.
 Product source, dependency pins and existing workflow assertions remain unchanged.
 
 ## Run on Linux x86-64

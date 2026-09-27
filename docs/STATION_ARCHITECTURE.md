@@ -226,19 +226,19 @@ Postfix authoritative queue ID is carried into an OceanMail-owned HERMES `uuxcom
 
 ### Phase 4F — Taylor caller-attempt evidence — COMPLETE
 
-Merged PR #14, main merge `6c624ca65c085aa1c4e52246769986135d2179fd`.
+Historical implementation included in the initial public snapshot.
 
 Proved a real system-level `uucico` caller attempt, exact queued-job snapshot, no-link failure with job retention, conservative process semantics, and restart durability.
 
 ### Phase 4G — simulated Mercury progress evidence — COMPLETE
 
-Merged PR #15, main merge `1e307ec3983bb66c18dae1989cbd30876c756bd5`.
+Historical implementation included in the initial public snapshot.
 
 Proved exact mapping -> caller attempt -> measured remote-side Mercury progress, followed by forced link loss with the exact Taylor job retained and no remote mailbox delivery.
 
 ### Phase 4H — far-side mailbox receipt evidence — COMPLETE
 
-Merged PR #18, main merge `581f2981e503d63ea0210f5ab6ed3960607afe59`.
+Historical implementation included in the initial public snapshot.
 
 Accepted verification workstation run proved:
 
@@ -255,7 +255,7 @@ Accepted verification workstation run proved:
 
 ### Phase 4I — returned receipt evidence — COMPLETE
 
-Merged PR #20, main merge `188d0ffea77367814a4b3efa26f3832cc7ddeed9`.
+Historical implementation included in the initial public snapshot.
 
 Phase 4I removes the origin's dependence on omniscient direct access to the far-side mailbox for sender-visible returned evidence. The accepted no-radio chain proves:
 

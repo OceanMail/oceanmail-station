@@ -50,7 +50,7 @@ Current program-level semantics come from `OceanMail/oceanmail-project`, especia
 
 Desktop Decision 0009 remains useful provenance for the removal of ordinary sender-selectable Priority, but the current authoritative rule is recorded in the project decision ledger: user-originated transport classes are Emergency and Ordinary; `Important` is metadata only.
 
-[Project ADR-008](https://github.com/OceanMail/oceanmail-project/blob/main/docs/decisions/ADR-008-four-band-scheduling-and-channel-use.md) defines Bands 0–3, capped control with a necessary route-establishment exception, ordinary local/relay payload using the remainder, and unreserved shared broadcasts. It also defines negotiated same-channel control/payload and bounded single-radio check-in requirements. This supersedes the five-/six-band and reserved-slot drafts; implementation remains in issue #22.
+[Project ADR-008](https://github.com/OceanMail/oceanmail-project/blob/main/docs/decisions/ADR-008-four-band-scheduling-and-channel-use.md) defines Bands 0–3, capped control with a necessary route-establishment exception, ordinary local/relay payload using the remainder, and unreserved shared broadcasts. It also defines negotiated same-channel control/payload and bounded single-radio check-in requirements. This supersedes the five-/six-band and reserved-slot drafts; experimental implementation and remaining gates are described in [LEASE_CONTROLLER.md](LEASE_CONTROLLER.md).
 
 The Server remains authoritative for global service accounting and earned-credit validation. Station may maintain disconnected working ledgers and resource limits but does not redefine service accounting locally.
 

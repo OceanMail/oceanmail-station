@@ -1,12 +1,12 @@
 # S3a public port and review handoff
 
-## Scope and lineage
+## Scope and public record
 
-The port starts from public Station `5d6b95ebc434d85beaedc093a831ab01841f79c3`.
-Its source is archive PR #59 at `a2487dd6640631785438539d7eb4e7e845144ba8`.
-Only quality tooling, its tests/locks and the already accepted Rust 1.98.1
-selection are ported. The archive branch also contains superseded dependency
-work; it must not be merged wholesale into the public tree.
+The S3a tooling merged on 2026-09-26 in
+[Station PR #4](https://github.com/OceanMail/oceanmail-station/pull/4), based on
+public Station `5d6b95ebc434d85beaedc093a831ab01841f79c3`. It adds quality tooling,
+its tests/locks and the already selected Rust 1.98.1 toolchain. Product source,
+HERMES/Mercury selections and existing acceptance workflows remain unchanged.
 
 The public implementation adds typed scanner normalization, exact diagnostic
 multiplicity/context comparison, immutable-base config and suppression guards,
@@ -21,8 +21,7 @@ initial introduction against a base that does not contain it.
 
 ## Review disposition
 
-The archive's three review-fix records were inspected before porting. Their
-final changes are retained: explicit Cargo audit freshness/index checks and
+The implementation includes: explicit Cargo audit freshness/index checks and
 database provenance; isolated HOME/Cargo/cache state and rejected scanner
 options; immutable-base gate loading; advisory owner/expiry metadata; directive
 and unscanned-script detection; SC1087 handling; Python transitive locks.
@@ -32,8 +31,8 @@ checks their inventory and removal while retaining other options and line number
 The public measurement also exposed unresolved sibling `test_ipc` imports in
 the newer HERMES helper directory. The type-checker search path now includes
 that directory; no missing-import diagnostic is suppressed.
-Historical private evidence bundles and old acceptance counts are not imported.
-Fresh public-head evidence belongs in the PR and its linked Actions runs.
+The public PR and its linked Actions runs record evidence for the merged head.
+Earlier measurements do not establish results for later commits.
 
 Remaining limitations are explicit: Rust/shell directive matching over-approximates
 candidates. Rust test matching under-approximates: attribute-argument forms,
@@ -62,8 +61,8 @@ Claude reviewed Station `8fa010c24beb2b639350991a21ed14406f1c633c` and Project
   90-day database-age limit.
 
 Other optional improvements and future S3b/S4 requirements from the review remain
-outside this correction. No production ledger or enforcement is added. A new
-exact-head delta review is required before owner acceptance.
+outside this correction. No production ledger or enforcement is added. The
+closeout exception below records the review actually performed.
 
 ## Reproduce
 
@@ -84,8 +83,10 @@ INTEGRATION; no LIVE / PRODUCT claim follows from these checks.
 
 ## Acceptance gates
 
-Independent Claude review of each exact public PR base/head is required by
-AGENTS.md and the central retrofit specification. This handoff does not claim
-that review or owner acceptance. Keep the archive source branches until the
-public replacements have been accepted. Do not infer merge authorization from
-historical archive PR descriptions.
+Independent Claude review of each exact public PR base/head remains the default
+under AGENTS.md and the central retrofit specification. For this S3a closeout,
+the [public merge record](https://github.com/OceanMail/oceanmail-station/pull/4)
+records the owner's 2026-09-26 instruction to finish using the completed earlier-head
+review without another Claude pass. The correction commits were validated and
+merged; no independent Claude review of those later commits is claimed. This
+exception does not activate a production baseline, S3b/S4 or future review waivers.

@@ -1,7 +1,8 @@
 # OceanMail Station — Upstream Baseline
 
-Proposed reconciliation: 2026-09-26. Exact-head public CI is the acceptance gate.
-See [reconciliation findings and archive disposition](UPSTREAM_RECONCILIATION.md).
+Reconciliation merged on 2026-09-26 in [Station PR #3](https://github.com/OceanMail/oceanmail-station/pull/3).
+Exact-head public CI remains the acceptance gate for future changes.
+See [reconciliation findings and implementation](UPSTREAM_RECONCILIATION.md).
 
 This document records the external components selected for OceanMail 0.2 Station proofs. It is a reproducibility and boundary record, not a vendoring list.
 

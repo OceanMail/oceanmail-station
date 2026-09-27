@@ -290,7 +290,7 @@ No accounting change is accepted by this research document. Program-level policy
 
 OceanMail 0.1 collected notes about PACTOR/SCS ALE, VARA HF, ARDOP, Mercury/HERMES, FreeDATA/Codec2, and related tools.
 
-Those notes remain in `oceanmail-0.1-prototype` as historical evidence.
+The requirements summarized here are research context and need current upstream validation.
 
 Before relying on any capability—monitor mode, ALE, channel control, broadcast behavior, modem command, license, or integration API—recheck current upstream documentation and implementation.
 

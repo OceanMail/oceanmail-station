@@ -45,7 +45,7 @@ public Station's initial main, not a second production patch.
   continuous tails/EINTR fairness, repeated sessions, late local-disconnect ACK,
   duplicate idle DISCONNECTED and bridge-claim rejection.
 
-Archive harness corrections: incoming execution now intercepts upstream `execv`
+Harness corrections: incoming execution now intercepts upstream `execv`
 as well as historical `execl`; delayed exit enters retirement through a real
 DISCONNECTED command, honoring current upstream's live-session-only kill policy.
 Mutex-only implementation probes are restricted to the patched variant; behavioral
@@ -65,7 +65,7 @@ disconnect before writing the command, and retains upstream's 90-second fallback
 inside the retirement wait. It waits for the bridge claim and drains/resets rings
 before reopening. No new UUCP process is admitted while old workers can write.
 
-The archive review identified a startup hole: deleting an existing semaphore
+Review identified a startup hole: deleting an existing semaphore
 forgets a surviving external bridge. This port corrects it with an atomic two-slot
 startup claim before touching shared memory. A daemon owns its second slot for
 its process lifetime; the first protects bridges and initialization. SEM_UNDO
@@ -80,8 +80,9 @@ The protocol boundary remains Mercury's VARA-compatible control/data TCP pair.
 Local diagnostic comparisons reproduce old TX (`4f4c44`), contaminated RX greeting,
 six retained tail bytes, delayed old-bridge cleanup, and false success after TCP
 reset on current unmodified upstream. The rebased patch passes those same probes.
-Fresh public Actions artifacts are authoritative for the proposed PR head; archive
-green runs and local results do not substitute for that acceptance.
+The [merged public PR](https://github.com/OceanMail/oceanmail-station/pull/3)
+records Actions evidence for its final head. Earlier runs and local results
+do not substitute for acceptance checks on later revisions.
 
 The combined `phase4i` job proves real UUCP transfer, durable interruption/retry,
 far-side mailbox proof, reciprocal returned receipt and persisted correlation.
