@@ -5,7 +5,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -323,7 +323,13 @@ pub fn initialize_station(db_path: &Path, requested_name: &str) -> Result<Statio
     let mut connection = Connection::open(db_path)?;
     connection.busy_timeout(std::time::Duration::from_secs(5))?;
     initialize_schema(&connection)?;
-    let transaction = connection.transaction()?;
+    // BEGIN IMMEDIATE (not the default DEFERRED) so a concurrent writer
+    // contends at BEGIN, where busy_timeout retries it. A deferred
+    // transaction only takes a SHARED lock at its first read; if two
+    // connections both do that and then both try to upgrade to a writer
+    // lock, SQLite returns SQLITE_BUSY immediately to avoid an upgrade
+    // deadlock, without ever invoking the busy handler.
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
     let station_id =
         metadata_get(&transaction, "station_id")?.unwrap_or_else(|| Uuid::new_v4().to_string());
@@ -399,7 +405,11 @@ pub fn reconcile_outbound_snapshot(
     let mut connection = Connection::open(db_path)?;
     connection.busy_timeout(std::time::Duration::from_secs(5))?;
     initialize_schema(&connection)?;
-    let transaction = connection.transaction()?;
+    // BEGIN IMMEDIATE: see the comment in initialize_station. This is the
+    // path queue_observer_loop and the HTTP handler both hit concurrently,
+    // so it's the site where the deferred-transaction upgrade deadlock
+    // actually shows up in the live daemon.
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
     let current_ids: HashSet<&str> = entries
         .iter()
