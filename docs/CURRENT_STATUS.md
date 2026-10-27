@@ -162,3 +162,10 @@ Keep implementation evidence separated into STATIC / UNIT, INTEGRATION, and LIVE
 diagnostics separately from current public CI. It does not establish a diagnostic
 baseline or enforce quality ratchets. Public `main` is protected and requires
 hosted checks; further retrofit work needs review and a separate assignment.
+
+Clippy and dependency advisories are the exception: since 2026-10-27,
+[`rust-quality.yml`](../.github/workflows/rust-quality.yml) fails on any
+`cargo clippy --all-targets` warning or `cargo audit` advisory, with no baseline,
+and runs weekly to catch new advisories. Exceptions must be explicit, reviewed
+entries with a reason; advisories go in `.cargo/audit.toml`. Making the job a
+required check is an owner branch-protection step.
