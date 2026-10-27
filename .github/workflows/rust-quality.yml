@@ -1,0 +1,50 @@
+name: Rust clippy and dependency advisories
+
+# Zero-tolerance gate (OceanMail/oceanmail-project DECISIONS.md, 2026-10-27):
+# any clippy warning or any Cargo.lock advisory fails. Exceptions must be
+# explicit, reviewed entries with a reason; advisories go in .cargo/audit.toml.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # New advisories appear without code changes.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-quality-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clippy-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install pinned ephemeral Rust toolchain
+        env:
+          RUST_TOOLCHAIN: 1.98.1
+        run: |
+          export RUSTUP_HOME="$RUNNER_TEMP/rustup"
+          export CARGO_HOME="$RUNNER_TEMP/cargo"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN"
+          "$CARGO_HOME/bin/rustup" component add clippy --toolchain "$RUST_TOOLCHAIN"
+          printf 'RUSTUP_HOME=%s\n' "$RUSTUP_HOME" >> "$GITHUB_ENV"
+          printf 'CARGO_HOME=%s\n' "$CARGO_HOME" >> "$GITHUB_ENV"
+          printf '%s\n' "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Clippy, all targets, warnings denied
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Install pinned cargo-audit
+        run: cargo install --locked cargo-audit --version 0.22.2
+      - name: Audit Cargo.lock, warnings denied
+        run: cargo audit --deny warnings
