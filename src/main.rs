@@ -162,19 +162,16 @@ async fn observe_postfix_once(state: &AppState) -> Result<(i64, usize), AnyError
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "{} -j exited with {}{}",
-                state.postqueue_path.display(),
-                output.status,
-                if stderr.is_empty() {
-                    String::new()
-                } else {
-                    format!(": {stderr}")
-                }
-            ),
-        )
+        return Err(io::Error::other(format!(
+            "{} -j exited with {}{}",
+            state.postqueue_path.display(),
+            output.status,
+            if stderr.is_empty() {
+                String::new()
+            } else {
+                format!(": {stderr}")
+            }
+        ))
         .into());
     }
 
