@@ -423,7 +423,6 @@ fn record_attempt_start(
         "uucico_attempt_started",
         Some(adapter),
         None,
-        None,
         Some("Station invoked a Taylor UUCP caller attempt for the remote system; this is not proof that any specific queued job transmitted bytes."),
     )?;
     transaction.commit()?;
@@ -497,8 +496,7 @@ fn record_attempt_snapshot(
         now_unix(),
         "queued_job_snapshot_recorded",
         Some("taylor-uustat"),
-        Some("mapped_jobs_queued_at_attempt_start"),
-        Some(associated.len() as i64),
+        Some(("mapped_jobs_queued_at_attempt_start", associated.len() as i64)),
         Some("Snapshot records which mapped jobs were queued when the system-level caller attempt began; it does not claim each job transmitted."),
     )?;
     transaction.commit()?;
@@ -530,8 +528,7 @@ fn record_attempt_progress(
         observed_at_unix,
         "transport_progress_observed",
         Some(evidence_source),
-        Some(metric_name),
-        Some(metric_value),
+        Some((metric_name, metric_value)),
         detail,
     )?;
     transaction.commit()?;
@@ -592,8 +589,7 @@ fn record_attempt_finish(
         observed_at_unix,
         "uucico_attempt_finished",
         Some("taylor-uucico-process"),
-        Some("process_exit_code"),
-        Some(exit_code),
+        Some(("process_exit_code", exit_code)),
         Some(outcome),
     )?;
     transaction.commit()?;
@@ -608,8 +604,7 @@ fn insert_attempt_event(
     observed_at_unix: i64,
     event_type: &str,
     evidence_source: Option<&str>,
-    metric_name: Option<&str>,
-    metric_value: Option<i64>,
+    metric: Option<(&str, i64)>,
     detail: Option<&str>,
 ) -> rusqlite::Result<i64> {
     transaction.execute(
@@ -622,8 +617,8 @@ fn insert_attempt_event(
             observed_at_unix,
             event_type,
             evidence_source,
-            metric_name,
-            metric_value,
+            metric.map(|(name, _)| name),
+            metric.map(|(_, value)| value),
             detail
         ],
     )?;
