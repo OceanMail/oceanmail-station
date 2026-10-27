@@ -35,10 +35,22 @@ if [[ ! -s "$TMP_FILE" ]]; then
     exit 65
 fi
 
-mv "$TMP_FILE" "$DEST_FILE"
 # Phase 4I evidence lives in a disposable lab bind mount and is consumed by the
 # host-side acceptance recorder. Make this non-sensitive receipt metadata
 # host-readable without weakening production storage semantics.
-chmod 0644 "$DEST_FILE"
+chmod 0644 "$TMP_FILE"
+
+# Publish with link(2), which fails if the destination already exists. The
+# check above is only a fast path: a concurrent ingest can still win between
+# it and here, and its receipt must not be overwritten.
+if ! LINK_ERROR="$(ln -T -- "$TMP_FILE" "$DEST_FILE" 2>&1)"; then
+    if [[ -e "$DEST_FILE" || -L "$DEST_FILE" ]]; then
+        printf 'OceanMail receipt ingest: destination already exists: %s\n' "$DEST_FILE" >&2
+        exit 73
+    fi
+    printf 'OceanMail receipt ingest: could not store artifact: %s\n' "$LINK_ERROR" >&2
+    exit 74
+fi
+rm -f "$TMP_FILE"
 trap - EXIT
 printf 'OceanMail receipt ingest: stored returned artifact at %s\n' "$DEST_FILE" >&2
